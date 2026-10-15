@@ -1,5 +1,5 @@
 /* Parte diario RK14 - service worker: cachea la app, nunca toca los envios */
-const CACHE = 'rk14-v1';
+const CACHE = 'rk14-v2';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-512-maskable.png'];
 
 self.addEventListener('install', e => {
