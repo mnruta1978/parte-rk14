@@ -752,7 +752,7 @@ function payload(p){
     token: CFG.token, obra: OBRA,
     parte:{ fecha:F, jefe:p.jefe||CFG.jefe||'', estado:'Abierto',
             reabierto:'', diaNoTrabajado:p.diaNoTrab||'', motivo:p.motivo||'',
-            creado:p.creado, modificado:p.modificado },
+            creado:p.creado, modificado:p.modificado, presentes:p.presentes||0 },
     jornales: p.jornales.filter(j=>j.personas>0).map(j=>({
       id:F+'·'+j.cod+'·'+(j.donde||'—'), parte:F, item:j.cod,
       donde:j.donde||'—', personas:j.personas, repaso:j.repaso?'Sí':'No' })),
