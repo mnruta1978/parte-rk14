@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#262626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Parte diario RK14</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --naranja:#FF8901; --naranja-osc:#CC6E00; --naranja-cl:#FFB877; --crema:#FFEAD6;
+  --gris-osc:#595959; --gris:#9F9F9F; --negro:#262626; --blanco:#fff;
+  --linea:#E3E3E3; --fondo:#F5F4F2; --rojo:#C00000;
+  --tap:56px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  font-family:Arial,Helvetica,system-ui,sans-serif;
+  background:var(--fondo); color:var(--negro);
+  font-size:17px; line-height:1.35;
+  overscroll-behavior:none; -webkit-user-select:none; user-select:none;
+}
+#app{min-height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto;background:var(--blanco)}
+
+/* ---------- barras ---------- */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 14px;background:var(--negro);color:#fff;font-size:12px;letter-spacing:.06em;
+  position:sticky;top:0;z-index:20;padding-top:calc(10px + env(safe-area-inset-top));
+}
+.topbar .back{color:#fff;background:none;border:0;font-size:14px;padding:4px 2px;cursor:pointer}
+.topbar .ctx{opacity:.75}
+.head{padding:14px 16px 10px}
+.step{font-size:11px;letter-spacing:.1em;color:var(--gris-osc);font-weight:bold;text-transform:uppercase}
+h1{font-size:21px;margin:4px 0 10px;line-height:1.2}
+.prog{height:4px;background:var(--linea);border-radius:2px;overflow:hidden;margin-bottom:4px}
+.prog>i{display:block;height:100%;background:var(--naranja);transition:width .25s}
+.body{flex:1;padding:0 16px 120px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.foot{
+  position:sticky;bottom:0;display:flex;gap:10px;padding:12px 16px;
+  padding-bottom:calc(12px + env(safe-area-inset-bottom));
+  background:#fff;border-top:1px solid var(--linea);z-index:20;
+}
+.foot button{flex:1}
+
+/* ---------- botones ---------- */
+button{font-family:inherit;font-size:16px;cursor:pointer}
+.btn{
+  min-height:var(--tap);border-radius:10px;border:1px solid var(--linea);
+  background:#fff;color:var(--negro);font-weight:bold;padding:0 14px;
+}
+.btn.primary{background:var(--negro);color:#fff;border-color:var(--negro)}
+.btn.ghost{background:#fff}
+.btn.wide{width:100%}
+.btn:active{transform:scale(.985)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.bigbtn{
+  width:100%;min-height:96px;border-radius:14px;border:0;background:var(--negro);color:#fff;
+  font-size:19px;font-weight:bold;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px;line-height:1.3;
+}
+
+/* ---------- chips ---------- */
+.chip{
+  display:inline-block;font-size:12px;font-weight:bold;padding:4px 9px;border-radius:999px;
+  border:1px solid var(--linea);background:#fff;color:var(--gris-osc);white-space:nowrap;
+}
+.chip.ok{background:#E8F3E8;border-color:#CADFCA;color:#2E6B2E}
+.chip.wait{background:var(--crema);border-color:var(--naranja-cl);color:var(--naranja-osc)}
+.chip.dark{background:var(--negro);color:#fff;border-color:var(--negro)}
+.chip.rep{background:var(--crema);border-color:var(--naranja-cl);color:var(--naranja-osc)}
+
+/* ---------- tarjetas / listas ---------- */
+.card{border:1px solid var(--linea);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff}
+.card.tap{cursor:pointer}
+.card .r1{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card .ttl{font-weight:bold;font-size:17px}
+.card .sub{font-size:13px;color:var(--gris-osc);margin-top:3px}
+.card .sub2{font-size:11px;color:var(--gris);margin-top:2px}
+.sect{font-size:11px;letter-spacing:.1em;color:var(--gris-osc);font-weight:bold;text-transform:uppercase;margin:18px 0 8px}
+.muted{color:var(--gris-osc);font-size:13px}
+.hint{font-size:13px;color:var(--gris-osc);margin:8px 0 2px}
+
+/* ---------- contador grande ---------- */
+.counter{display:flex;align-items:center;gap:14px;justify-content:center;margin:6px 0 4px}
+.counter .n{
+  flex:1;max-width:160px;text-align:center;font-size:46px;font-weight:bold;
+  border:2px solid var(--negro);border-radius:12px;padding:6px 0;
+}
+.rnd{
+  width:var(--tap);height:var(--tap);min-width:var(--tap);border-radius:50%;
+  border:1px solid var(--linea);background:#fff;font-size:26px;font-weight:bold;line-height:1;
+  display:flex;align-items:center;justify-content:center;color:var(--negro);
+}
+.rnd.on{background:var(--naranja-cl);border-color:var(--naranja)}
+.rnd:active{background:var(--crema)}
+
+/* ---------- fila de ítem (paso 2) ---------- */
+.row{border:1px solid var(--linea);border-radius:12px;padding:9px 11px;margin-bottom:8px}
+.pill.xq{margin-left:auto;color:var(--gris);font-size:16px;padding:5px 11px;line-height:1}
+.row .top{display:flex;align-items:center;gap:10px}
+.row .nm{flex:1;font-size:14px;font-weight:bold;line-height:1.25}
+.row .nm small{display:block;font-weight:normal;color:var(--gris-osc);font-size:12px;margin-top:2px}
+.row .ct{display:flex;align-items:center;gap:7px}
+.row .ct .v{min-width:26px;text-align:center;font-size:19px;font-weight:bold}
+.row .rnd{width:40px;height:40px;min-width:40px;font-size:21px}
+.wheres{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.wheres .lb{font-size:11px;color:var(--gris-osc);margin-right:2px}
+.pill{
+  border:1px solid var(--linea);background:#fff;border-radius:7px;padding:5px 10px;
+  font-size:12px;font-weight:bold;color:var(--gris-osc);min-height:32px;
+}
+.pill.sel{background:var(--negro);color:#fff;border-color:var(--negro)}
+.rowbar{display:flex;justify-content:space-between;align-items:center;margin:4px 0 10px;font-size:12px;font-weight:bold;color:var(--gris-osc)}
+
+/* ---------- grilla UF ---------- */
+.ufgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:10px}
+.uf{
+  min-height:46px;border:1px solid var(--linea);border-radius:9px;background:#fff;
+  font-size:14px;font-weight:bold;display:flex;align-items:center;justify-content:center;color:var(--negro);
+}
+.uf.q{font-size:10px;grid-column:span 1}
+.uf.old{background:#EDEDED;color:var(--gris);border-color:#E0E0E0;pointer-events:none}
+.uf.new{background:var(--negro);color:#fff;border-color:var(--negro)}
+.leg{font-size:11px;color:var(--gris-osc);margin-top:9px;display:flex;gap:14px}
+.leg i{font-style:normal}
+
+/* ---------- resumen ---------- */
+table.sum{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
+table.sum td{padding:7px 0;border-bottom:1px solid var(--linea)}
+table.sum td.n{text-align:right;font-weight:bold;width:46px}
+table.sum tr.tot td{border-bottom:0;border-top:2px solid var(--negro);font-weight:bold;padding-top:9px}
+.box{border:1px solid var(--linea);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px}
+.box.warn{background:var(--crema);border-color:var(--naranja-cl);color:var(--naranja-osc)}
+.box b{display:block;margin-bottom:2px}
+
+/* ---------- varios ---------- */
+.banner{
+  display:flex;align-items:center;gap:8px;background:var(--crema);color:var(--naranja-osc);
+  border-radius:9px;padding:8px 11px;font-size:12px;font-weight:bold;margin:0 16px 12px
+}
+.brand{display:flex;align-items:center;gap:10px;padding:14px 16px 6px}
+.brand .k{width:36px;height:36px;border-radius:7px;display:block}
+.brand .t{font-size:11px;letter-spacing:.08em;color:var(--gris-osc);font-weight:bold}
+.brand h2{margin:1px 0 0;font-size:22px}
+.search{width:100%;min-height:48px;border:1px solid var(--linea);border-radius:10px;padding:0 12px;font-size:16px;font-family:inherit;-webkit-user-select:text;user-select:text}
+input[type=number],input[type=text]{-webkit-user-select:text;user-select:text}
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:96px;background:var(--negro);color:#fff;
+  padding:11px 16px;border-radius:9px;font-size:13px;z-index:60;max-width:88%;text-align:center;
+  box-shadow:0 6px 18px rgba(0,0,0,.25)
+}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;z-index:70}
+.sheet{background:#fff;width:100%;max-width:560px;margin:0 auto;border-radius:14px 14px 0 0;padding:16px;max-height:86%;overflow:auto;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 0 10px;font-size:18px}
+.pick{width:100%;text-align:left;border:1px solid var(--linea);border-radius:10px;padding:11px 12px;margin-bottom:7px;background:#fff;font-size:14px;font-weight:bold;min-height:48px}
+.pick small{display:block;font-weight:normal;color:var(--gris-osc);font-size:12px;margin-top:2px}
+.pick .mt{float:right;font-size:10px;font-weight:bold;color:var(--gris-osc);border:1px solid var(--linea);border-radius:999px;padding:2px 7px}
+.cfgrow{margin-bottom:12px}
+.cfgrow label{display:block;font-size:12px;font-weight:bold;color:var(--gris-osc);margin-bottom:4px}
+.cfgrow input{width:100%;min-height:46px;border:1px solid var(--linea);border-radius:9px;padding:0 11px;font-size:15px;font-family:inherit}
+.linkish{background:none;border:0;color:var(--naranja-osc);font-size:13px;font-weight:bold;text-decoration:underline;padding:6px 0}
+.pie{font-size:12px;color:var(--gris-osc);border-top:1px solid var(--linea);margin-top:14px;padding-top:10px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+
+/* ============================================================
+   PARTE DIARIO RK14 — Ruka Kuyen Construcciones
+   Flecha 6 · app de obra, carga sin señal, cola de subida
+   Datos maestros: MAESTRO y UF de Parte_diario_RK14_base_v1.xlsx
+   ============================================================ */
+
+/* ---------- 1. Configuración ---------- */
+const OBRA = 'RUKA 14';
+const CFG_KEY = 'rk14_cfg';          // {url, token, jefe}
+const DB_KEY  = 'rk14_partes';       // partes guardados
+const AV_KEY  = 'rk14_avances';      // cache de avance por itemKey
+
+/* ---------- 2. Maestro de ítems (MAESTRO de la planilla) ---------- */
+/* metodo: MANO = % a mano · UF = X UF + Quincho · NINGUNO = sin avance */
+const MAESTRO = [
+  ['01','Trabajos Preliminares','—','MANO'],
+  ['02','Movimientos de Suelos','—','MANO'],
+  ['03.1','Estructura Hormigón Armado','Cochera','MANO'],
+  ['03.1','Estructura Hormigón Armado','Bloque 1','MANO'],
+  ['03.1','Estructura Hormigón Armado','Bloque 2','MANO'],
+  ['03.1','Estructura Hormigón Armado','Bloque 3','MANO'],
+  ['03.2','Estructura de Madera (ex Metálica)','—','MANO'],
+  ['03.3','Estructura Maderas','—','MANO'],
+  ['04.1','Mampostería','—','UF'],
+  ['04.2','Revoques','Revoque 3 en 1','MANO'],
+  ['04.2','Revoques','Revoque BR','UF'],
+  ['04.3','Aislaciones','—','MANO'],
+  ['04.4','Cielorrasos','—','UF'],
+  ['04.5','Contrapisos / Carpetas','Radiante y liviano c/perlas','UF'],
+  ['04.5','Contrapisos / Carpetas','Sobre losa/platea y carpeta cochera','MANO'],
+  ['05','Yesería','—','UF'],
+  ['06.1','Revestimientos Madera','—','MANO'],
+  ['06.2','Pisos','Interiores','UF'],
+  ['06.2','Pisos','Exteriores','MANO'],
+  ['06.3','Zócalos','—','UF'],
+  ['06.4','Revestimientos Cerámicos o Microcemento','—','UF'],
+  ['06.5','Revestimientos Piedra','—','MANO'],
+  ['06.6','Revear o Microcemento','—','MANO'],
+  ['06.7','Cercos de Madera','—','MANO'],
+  ['06.8','Revestimiento Siding','—','MANO'],
+  ['06.9','Varios','—','MANO'],
+  ['06.10','Veredas - pisos (no cerámicos)','—','MANO'],
+  ['07','Pinturas','Interiores','UF'],
+  ['07','Pinturas','Exteriores y comunes','MANO'],
+  ['08','Carpinterías','—','UF'],
+  ['09','Equipamiento','—','UF'],
+  ['10','Vidrios y Espejos','—','MANO'],
+  ['11','Instalación Sanitaria','—','MANO'],
+  ['12','Instalación Eléctrica','—','MANO'],
+  ['12.14','IE - Potenciación','—','MANO'],
+  ['12.15','Grupo Electrógeno','—','MANO'],
+  ['13','Instalación Gas','—','MANO'],
+  ['14','Instalación Calefacción','—','MANO'],
+  ['15','Cubierta (no incluye estructura)','—','MANO'],
+  ['16','Zingurías','—','MANO'],
+  ['17','Mármoles','—','UF'],
+  ['20','Trabajos Exteriores','—','MANO'],
+  ['21','Herrería','—','MANO'],
+  ['22','Ascensores','—','MANO'],
+  ['AUX.1','Limpieza de obra','—','NINGUNO'],
+  ['AUX.2','Carga, descarga y movimiento de materiales','—','NINGUNO']
+].map(r=>({cod:r[0],desc:r[1],donde:r[2],metodo:r[3]}));
+
+/* 27 UF + Quincho, igual que la hoja UF de la planilla (actualizado 14/10/2026) */
+const UFS = ['UF 1','UF 2','UF 3','UF 4','UF 5','UF 6','UF 7','UF 8','UF 9','UF 10','UF 11','UF 12',
+             'UF 13','UF 14','UF 15','UF 16','UF 17','UF 18','UF 19','UF 20','UF 21','UF 22','UF 23',
+             'UF 24','UF 25','UF 26','UF 27','Quincho'];
+
+const MOTIVOS = ['Día libre','Feriado','Paro','Compensatorio'];
+
+/* ítems únicos por código: para la lista del paso 2 (el Dónde se elige adentro) */
+function itemsUnicos(){
+  const out=[], vistos={};
+  MAESTRO.forEach(m=>{
+    if(vistos[m.cod]) return;
+    vistos[m.cod]=1;
+    const dondes = MAESTRO.filter(x=>x.cod===m.cod).map(x=>x.donde).filter(d=>d!=='—');
+    out.push({cod:m.cod, desc:m.desc, dondes});
+  });
+  return out;
+}
+const ITEMS = itemsUnicos();
+function metodoDe(cod,donde){
+  const m = MAESTRO.find(x=>x.cod===cod && (x.donde===donde || (donde==='—'&&x.donde==='—')));
+  return m ? m.metodo : (MAESTRO.find(x=>x.cod===cod)||{}).metodo || 'MANO';
+}
+function nombreItem(cod,donde){
+  const m = MAESTRO.find(x=>x.cod===cod);
+  const n = m ? cod+' '+m.desc : cod;
+  return donde && donde!=='—' ? n+' · '+donde : n;
+}
+const key = (cod,donde)=> cod+'|'+(donde||'—');
+
+/* ---------- 3. Utilidades ---------- */
+const $ = s => document.querySelector(s);
+const el = document.getElementById('app');
+const z2 = n => String(n).padStart(2,'0');
+function hoyStr(d){ d=d||new Date(); return z2(d.getDate())+'/'+z2(d.getMonth()+1)+'/'+d.getFullYear(); }
+function ahoraStr(){ const d=new Date(); return z2(d.getDate())+'/'+z2(d.getMonth()+1)+' '+z2(d.getHours())+':'+z2(d.getMinutes()); }
+function dmy(s){ const p=String(s).split('/'); return new Date(+p[2],+p[1]-1,+p[0]); }
+function diaCorto(s){
+  const dias=['dom','lun','mar','mié','jue','vie','sáb'];
+  const d=dmy(s); return dias[d.getDay()]+' '+z2(d.getDate())+'/'+z2(d.getMonth()+1);
+}
+function quincenaDe(s){
+  const d=dmy(s), dd=d.getDate(), m=z2(d.getMonth()+1);
+  const ult=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  return dd<=15 ? '01-15/'+m : '16-'+ult+'/'+m;
+}
+function uid(){ return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function ls(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+
+let CFG     = ls(CFG_KEY,{url:'',token:'',jefe:''});
+let PARTES  = ls(DB_KEY,[]);
+let AVANCES = ls(AV_KEY,{});   // {itemKey:{pct:0-100, ufs:['UF 1',...], fecha:'dd/mm/aaaa'}}
+
+function guardarTodo(){ lsSet(DB_KEY,PARTES); lsSet(AV_KEY,AVANCES); }
+
+let toastT=null;
+function toast(msg,ms){
+  const old=document.querySelector('.toast'); if(old) old.remove();
+  const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
+  document.body.appendChild(d);
+  clearTimeout(toastT); toastT=setTimeout(()=>d.remove(), ms||2600);
+}
+
+/* ---------- 4. Estado de navegación ---------- */
+let V = 'home';        // vista actual
+let P = null;          // parte en edición
+let AV = null;         // avance en curso {cod,donde,metodo,pct,ufs}
+let BUSCA = '';
+let MODAL = null;      // 'items' | 'avance' | 'cfg' | 'motivo'
+
+function nuevoParte(){
+  return { id:uid(), fecha:hoyStr(), jefe:CFG.jefe||'', obra:OBRA, estado:'Abierto',
+           presentes:0, diaNoTrab:'', motivo:'', jornales:[], lluvia:0, avances:[],
+           creado:ahoraStr(), modificado:ahoraStr(), subido:false };
+}
+const asignados = p => p.jornales.reduce((a,j)=>a+(+j.personas||0),0) + (+p.lluvia||0);
+
+/* ============================================================
+   5. VISTAS
+   ============================================================ */
+
+function render(){
+  el.innerHTML = ({
+    home:vHome, s1:vPresentes, s2:vAsignacion, s3:vTermino,
+    s4:vAvance, s5:vResumen
+  }[V] || vHome)();
+  el.scrollTop = 0;
+  if(MODAL) el.insertAdjacentHTML('beforeend', vModal());
+}
+
+/* ---------- 5.0 Inicio ---------- */
+function vHome(){
+  const pend = PARTES.filter(p=>!p.subido).length;
+  const hoy  = hoyStr();
+  const yaHoy = PARTES.find(p=>p.fecha===hoy);
+  const lista = PARTES.slice().sort((a,b)=>dmy(b.fecha)-dmy(a.fecha)).slice(0,12);
+  return `
+  <div class="brand">
+    <img class="k" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgBAMAAAAQtmoLAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAAMFBMVEXuyZ3jjzf14svmolnru4bhdw3jgR7+/v3kgyLiexTlmEf36dfqtHjoqmfy17b58+g/aI0pAAADlUlEQVR42rWXTWgTQRTH/1kTswm2JhUVUfPVUgUtFkVKwUMQe1CoVAgoiChSqljU1I96KJSop4qVQBWsF/EgXjwEe7MWQoiEgpUcFAvq7jYSsFSyaQqppcnUQ5q42ySTmUPmNAvvt++9eW9m/mPocykojGZHfLX1M2oMQVBKcz+2oOYQCPiGoPvKcAF5kdeDnz8kTiAHIxegACKfh2+cIQntMNQ56S3I1tlDhr9w5jqHBCzX2YMRgTgXIPIn3c4LBPkAAwjh9HDbxQVk+QsX5gPMdT81gI05Cy4qUNZ6gqOpjKCdRIJ7q4UeUiCn/fK47UfvKvRz6YTW/qf12o8HoIcUmPqfbsO+7h1qih5SWJOufejwRzWl0DwQAbZSug3jNxaWKtjrQiq1qscgHvQeqPR/fUjN/ksF+zn7YChW2b5Sa3gaWkb7Yxcr2+tXKRz5CcFhv/fGd761in1ZpQVH/PeV6OTeavbYdOT/vOnQmU679dySsXunqjB1qys/Zx9+K858TiuM7X2zZfSqOHI6o7Deortf9ODBk4zEfFR+68GjZ1R7fUheYOw53b6scB/WCMeeDgBv220udumwGodp4jCd0Hkg2/zITXibaIS20jaHRW5TyCffvDnNtqy2yJ8ZwDT+iuJjwyrJyTeAqZNC6IBeEOdQFDB12asSOkD0QlIvzAIrX6sSOmAAgJQ6HgRWYtUIHZAFgMTfxyHAHLtfmdABfgAgcrYrAJjPViaEcm1C5PwuAOaz9xMuOpC/sl5w58gkAPN3dwVCW+n09tk1AIBq6Tz5BYjc+T7nTFMLV2xtKTMdBPCw352geYBami1u9r3cD0SOLS+uMV2KJKEOhgBMHjF4KB40Y23RvD8HQOqOuVWma5fIyQ4AeB+1e9juadK80AsApx7pCMrFLqlTQQDwndISNCUgpcb8APD0jIaolnRB+YrJNgVA7LJiUVm0BpH/zAAARgdKPujihMjJcQDA9atFooaaIc6RKABgsEjUkj+Sen52nWj0MOklKS0UtObwrUYPAENfTUnVbH3aAwDi9OmMxKLIClsW+NvxrtFFr0OxD53hHADk9nhVkUXzEXn+QOF4n/DamEQicS6fKxCvvWyqUlKng+sEowyVUmOhAsGQ9HofdrUptVSlPnH84lPGRJ7v4JPSxLnQy6e9JXUqzifWpZTVz9J8Wm1tbeF6DhA5O2MEH2HgfHAQJ+8LReJ+0vwDWf0oHCx9SYYAAAAASUVORK5CYII=" alt="Ruka Kuyen">
+    <div><div class="t">RK14 · RUKA KUYEN</div><h2>Parte diario</h2></div>
+  </div>
+  <div style="padding:0 16px 10px" class="muted">
+    Jefe de obra: <b>${esc(CFG.jefe||'sin cargar')}</b>
+    <button class="linkish" data-a="cfg" style="margin-left:8px">Cambiar</button>
+  </div>
+  ${pend ? `<div class="banner">${navigator.onLine?'Subiendo':'Sin señal'} · ${pend} parte${pend>1?'s':''} en cola, sube${pend>1?'n':''} solo</div>` : ''}
+  <div class="body">
+    <button class="bigbtn" data-a="nuevo">${yaHoy?'Seguir el parte de hoy':'Cargar parte de hoy'} · ${diaCorto(hoy)}</button>
+    <div class="sect">Partes cargados</div>
+    ${lista.length? lista.map(p=>`
+      <div class="card tap" data-a="abrir" data-id="${p.id}">
+        <div class="r1">
+          <div>
+            <div class="ttl">${diaCorto(p.fecha)}</div>
+            <div class="sub">${p.diaNoTrab? esc(p.diaNoTrab) : p.presentes+' presentes'} ·
+              ${p.avances.length? p.avances.length+' avance'+(p.avances.length>1?'s':'') : 'sin avance'}</div>
+            <div class="sub2">Creado ${esc(p.creado)} · Modif. ${esc(p.modificado)}</div>
+          </div>
+          <span class="chip ${p.subido?'ok':'wait'}">${p.subido?'Subido':'Pendiente de subir'}</span>
+        </div>
+      </div>`).join('')
+      : '<div class="muted">Todavía no cargaste ningún parte.</div>'}
+    <div class="pie">Quincena ${quincenaDe(hoy)} · los avances pasan al tablero en el cierre.</div>
+  </div>`;
+}
+
+/* ---------- 5.1 Presentes ---------- */
+function vPresentes(){
+  return `
+  ${barra('PASO 1 DE 4','¿Cuántos vinieron hoy?',1)}
+  <div class="body">
+    <div class="hint">Jornales presentes</div>
+    <div class="counter">
+      <button class="rnd" data-a="pres-" >−</button>
+      <div class="n">${P.presentes}</div>
+      <button class="rnd" data-a="pres+">+</button>
+    </div>
+    <div class="muted" style="text-align:center">Contá todos los que trabajaron hoy en obra.</div>
+
+    <div class="sect">¿Hoy no se trabajó?</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+      ${MOTIVOS.map(m=>`<button class="btn ${P.diaNoTrab===m?'primary':''}" data-a="nt" data-m="${m}">${m}</button>`).join('')}
+    </div>
+    ${P.diaNoTrab?`<div class="box warn"><b>Día no trabajado: ${esc(P.diaNoTrab)}</b>
+      El parte se cierra acá, sin asignación ni avance.</div>`:''}
+  </div>
+  <div class="foot">
+    <button class="btn ghost" data-a="home">Atrás</button>
+    <button class="btn primary" data-a="p1-next">${P.diaNoTrab?'Guardar parte':'Siguiente'}</button>
+  </div>`;
+}
+
+/* ---------- 5.2 Asignación ---------- */
+function vAsignacion(){
+  const asig = asignados(P), falta = P.presentes - asig;
+  return `
+  ${barra('PASO 2 DE 4','¿En qué trabajaron?',2)}
+  <div class="body">
+    <div class="rowbar">
+      <span>Asignados ${asig} de ${P.presentes}</span>
+      <span class="chip ${falta===0?'ok':'wait'}">${falta===0?'Completo':(falta>0?'Faltan '+falta:'Sobran '+(-falta))}</span>
+    </div>
+
+    ${P.jornales.map((j,i)=>filaItem(j,i)).join('')}
+
+    <div class="row" style="border-style:dashed">
+      <div class="top">
+        <div class="nm">Lluvia · se fueron<small>No van a ningún ítem</small></div>
+        <div class="ct">
+          <button class="rnd" data-a="llu-">−</button>
+          <div class="v">${P.lluvia}</div>
+          <button class="rnd ${P.lluvia>0?'on':''}" data-a="llu+">+</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn wide" data-a="add-item" style="margin-top:4px">+ Agregar ítem</button>
+  </div>
+  <div class="foot">
+    <button class="btn ghost" data-a="s1">Atrás</button>
+    <button class="btn primary" data-a="p2-next">Siguiente</button>
+  </div>`;
+}
+
+function filaItem(j,i){
+  const it = ITEMS.find(x=>x.cod===j.cod) || {dondes:[],desc:j.cod};
+  return `
+  <div class="row">
+    <div class="top">
+      <div class="nm">${esc(j.cod+' '+it.desc)}
+        ${j.repaso?'<span class="chip rep" style="margin-top:4px">Repaso</span>':''}</div>
+      <div class="ct">
+        <button class="rnd" data-a="it-" data-i="${i}">−</button>
+        <div class="v">${j.personas}</div>
+        <button class="rnd ${j.personas>0?'on':''}" data-a="it+" data-i="${i}">+</button>
+      </div>
+    </div>
+    <div class="wheres">
+      ${it.dondes.length?`<span class="lb">Dónde</span>
+        ${it.dondes.map(d=>`<button class="pill ${j.donde===d?'sel':''}" data-a="dd" data-i="${i}" data-d="${esc(d)}">${esc(d)}</button>`).join('')}`:''}
+      <button class="pill ${j.repaso?'sel':''}" data-a="rep" data-i="${i}">Repaso</button>
+      <button class="pill xq" data-a="del" data-i="${i}">×</button>
+    </div>
+  </div>`;
+}
+
+/* ---------- 5.3 ¿Se terminó algo? ---------- */
+function vTermino(){
+  const delDia = P.jornales
+    .filter(j=>metodoDe(j.cod,j.donde||'—')!=='NINGUNO')
+    .map(j=>({cod:j.cod,donde:j.donde||'—'}));
+  return `
+  ${barra('PASO 3 DE 4','¿Se terminó algo hoy?',3)}
+  <div class="body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="btn" data-a="term-si" style="min-height:64px">Sí</button>
+      <button class="btn" data-a="term-no" style="min-height:64px">No, cerrar parte</button>
+    </div>
+
+    ${P.avances.length?`<div class="sect">Avances marcados hoy</div>
+      ${P.avances.map((a,i)=>`<div class="card"><div class="r1">
+        <div><div class="ttl" style="font-size:15px">${esc(nombreItem(a.cod,a.donde))}</div>
+        <div class="sub">${a.metodo==='UF'? a.ufs.join(' · ') : a.pct+'% acumulado'}</div></div>
+        <button class="pill" data-a="del-av" data-i="${i}" style="color:var(--rojo)">Quitar</button>
+      </div></div>`).join('')}`:''}
+
+    <div class="sect">¿Qué se terminó?</div>
+    ${delDia.length? delDia.map(d=>`
+      <button class="pick" data-a="av" data-cod="${esc(d.cod)}" data-d="${esc(d.donde)}">
+        <span class="mt">${metodoDe(d.cod,d.donde)==='UF'?'UF + Quincho':'% a mano'}</span>
+        ${esc(nombreItem(d.cod,d.donde))}
+      </button>`).join('')
+      : '<div class="muted">No cargaste ítems hoy.</div>'}
+    <div class="muted" style="margin-top:8px">Aparecen los ítems cargados hoy. También se puede buscar otro.</div>
+    <button class="btn wide" data-a="buscar-av" style="margin-top:10px">Buscar otro ítem</button>
+  </div>
+  <div class="foot">
+    <button class="btn ghost" data-a="s2">Atrás</button>
+    <button class="btn primary" data-a="s5">Siguiente</button>
+  </div>`;
+}
+
+/* ---------- 5.4 Marcar avance ---------- */
+function vAvance(){
+  const prev = AVANCES[key(AV.cod,AV.donde)] || {pct:0,ufs:[],fecha:''};
+  if(AV.metodo==='UF'){
+    const marcadas = prev.ufs||[];
+    const tot = marcadas.length + AV.ufs.length;
+    return `
+    ${barra('PASO 4 DE 4 · MARCAR AVANCE', nombreItem(AV.cod,AV.donde),4)}
+    <div class="body">
+      <div class="muted">UF + Quincho · Hoy <b>${AV.ufs.length}</b> · Total <b>${tot} de ${UFS.length}</b></div>
+      <div class="hint">Tildá las UF que se terminaron</div>
+      <div class="ufgrid">
+        ${UFS.map(u=>{
+          const vieja = marcadas.indexOf(u)>=0, nueva = AV.ufs.indexOf(u)>=0;
+          const lbl = u==='Quincho'?'Quincho':u.replace('UF ','');
+          return `<button class="uf ${u==='Quincho'?'q':''} ${vieja?'old':''} ${nueva?'new':''}"
+                   data-a="uf" data-u="${esc(u)}">${lbl}</button>`;
+        }).join('')}
+      </div>
+      <div class="leg"><i>▪ gris: ya marcada</i><i>▪ negro: hoy</i></div>
+      ${prev.fecha?`<div class="muted" style="margin-top:10px">Último marcado: ${esc(prev.fecha)}</div>`:''}
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-a="s3">Marcar otro</button>
+      <button class="btn primary" data-a="av-save">Guardar avance</button>
+    </div>`;
+  }
+  return `
+  ${barra('PASO 4 DE 4 · MARCAR AVANCE', nombreItem(AV.cod,AV.donde),4)}
+  <div class="body">
+    <div class="muted">% a mano${prev.fecha?' · anterior '+prev.pct+'% ('+esc(prev.fecha)+')':''}</div>
+    <div class="hint">% acumulado del ítem</div>
+    <div class="counter">
+      <button class="rnd" data-a="pct-">−</button>
+      <div class="n">${AV.pct}%</div>
+      <button class="rnd" data-a="pct+">+</button>
+    </div>
+    <div class="muted" style="text-align:center">De a 5%. Es el acumulado, no lo de hoy.</div>
+    ${AV.pct<prev.pct?`<div class="box warn"><b>Ojo</b>Estás poniendo menos que el anterior (${prev.pct}%).</div>`:''}
+  </div>
+  <div class="foot">
+    <button class="btn ghost" data-a="s3">Marcar otro</button>
+    <button class="btn primary" data-a="av-save">Guardar avance</button>
+  </div>`;
+}
+
+/* ---------- 5.5 Resumen ---------- */
+function vResumen(){
+  const asig = asignados(P);
+  const filas = P.jornales.filter(j=>j.personas>0).map(j=>
+    [nombreItem(j.cod,j.donde||'—')+(j.repaso?' · Repaso':''), j.personas]);
+  if(P.lluvia>0) filas.push(['Lluvia · se fueron', P.lluvia]);
+  const dif = P.presentes - asig;
+  return `
+  <div class="topbar"><button class="back" data-a="s3">← Parte</button>
+    <span class="ctx">${diaCorto(P.fecha)} · RK14</span></div>
+  <div class="head"><h1>Revisá y guardá</h1>
+    <span class="chip dark">Presentes ${P.presentes}</span>
+    <span class="chip">Ítems ${P.jornales.filter(j=>j.personas>0).length}</span>
+  </div>
+  <div class="body">
+    <table class="sum">
+      ${filas.map(f=>`<tr><td>${esc(f[0])}</td><td class="n">${f[1]}</td></tr>`).join('')}
+      <tr class="tot"><td>Total</td><td class="n">${asig}</td></tr>
+    </table>
+
+    ${P.avances.length?`<div class="box"><b>Avance marcado (en tránsito hasta el cierre)</b>
+      ${P.avances.map(a=>esc(nombreItem(a.cod,a.donde))+' · '+(a.metodo==='UF'?a.ufs.join(', '):a.pct+'%')).join('<br>')}
+    </div>`:''}
+
+    ${dif!==0?`<div class="box warn">Asignaste ${asig} y declaraste ${P.presentes} presentes.
+      La diferencia queda marcada para revisar; no frena la carga.</div>`:''}
+    ${P.diaNoTrab?`<div class="box warn"><b>Día no trabajado</b>${esc(P.diaNoTrab)}</div>`:''}
+  </div>
+  <div class="foot">
+    <button class="btn ghost" data-a="s2">Editar</button>
+    <button class="btn primary" data-a="guardar">Guardar parte</button>
+  </div>`;
+}
+
+function barra(step,titulo,n){
+  return `
+  <div class="topbar"><button class="back" data-a="home">← Partes</button>
+    <span class="ctx">${diaCorto(P.fecha)} · RK14</span></div>
+  <div class="head">
+    <div class="step">${esc(step)}</div>
+    <h1>${esc(titulo)}</h1>
+    <div class="prog"><i style="width:${n*25}%"></i></div>
+  </div>`;
+}
+
+/* ---------- 5.6 Modales ---------- */
+function vModal(){
+  let inner='';
+  if(MODAL==='items' || MODAL==='avance'){
+    const q = BUSCA.toLowerCase();
+    const soloAvance = MODAL==='avance';
+    const lista = MAESTRO.filter(m=>{
+      if(soloAvance && m.metodo==='NINGUNO') return false;
+      if(!soloAvance && !(m.donde==='—')) { /* en items mostramos por código */ }
+      const t = (m.cod+' '+m.desc+' '+m.donde).toLowerCase();
+      return !q || t.indexOf(q)>=0;
+    });
+    const vistos={}, filas=[];
+    lista.forEach(m=>{
+      if(!soloAvance){ if(vistos[m.cod]) return; vistos[m.cod]=1; }
+      filas.push(m);
+    });
+    inner = `<h3>${soloAvance?'¿Qué ítem se terminó?':'Agregar ítem'}</h3>
+      <input class="search" placeholder="Buscar ítem..." value="${esc(BUSCA)}" data-a="q" autocomplete="off">
+      <div style="margin-top:10px">
+      ${filas.slice(0,60).map(m=>`
+        <button class="pick" data-a="${soloAvance?'av':'pick-item'}" data-cod="${esc(m.cod)}" data-d="${esc(m.donde)}">
+          ${soloAvance?`<span class="mt">${m.metodo==='UF'?'UF + Quincho':'% a mano'}</span>`:''}
+          ${esc(m.cod+' '+m.desc)}${soloAvance&&m.donde!=='—'?`<small>${esc(m.donde)}</small>`:''}
+        </button>`).join('')}
+      </div>
+      <button class="btn wide" data-a="cerrar-modal" style="margin-top:8px">Cancelar</button>`;
+  }
+  if(MODAL==='cfg'){
+    inner = `<h3>Configuración</h3>
+      <div class="cfgrow"><label>Jefe de obra</label><input id="c-jefe" value="${esc(CFG.jefe)}" placeholder="Nombre"></div>
+      <div class="cfgrow"><label>URL del Apps Script (doPost)</label><input id="c-url" value="${esc(CFG.url)}" placeholder="https://script.google.com/..."></div>
+      <div class="cfgrow"><label>Clave</label><input id="c-tok" value="${esc(CFG.token)}" placeholder="PARTE_TOKEN"></div>
+      <div class="muted">Queda guardado solo en este teléfono.</div>
+      <div style="display:flex;gap:9px;margin-top:12px">
+        <button class="btn ghost" data-a="cerrar-modal" style="flex:1">Cancelar</button>
+        <button class="btn primary" data-a="cfg-save" style="flex:1">Guardar</button>
+      </div>`;
+  }
+  return `<div class="modal" data-a="modal-bg"><div class="sheet">${inner}</div></div>`;
+}
+
+/* ============================================================
+   6. ACCIONES
+   ============================================================ */
+el.addEventListener('click', ev=>{
+  const b = ev.target.closest('[data-a]'); if(!b) return;
+  const a = b.dataset.a, i = +b.dataset.i;
+  const touch = ()=>{ if(P){ P.modificado = ahoraStr(); } };
+
+  switch(a){
+    /* navegación */
+    case 'home': V='home'; P=null; break;
+    case 's1': V='s1'; break;
+    case 's2': V='s2'; break;
+    case 's3': V='s3'; break;
+    case 's5': V='s5'; break;
+    case 'cfg': MODAL='cfg'; break;
+    case 'cerrar-modal': MODAL=null; BUSCA=''; break;
+    case 'modal-bg': if(ev.target.classList.contains('modal')){ MODAL=null; BUSCA=''; } else return; break;
+
+    case 'nuevo': {
+      const ya = PARTES.find(p=>p.fecha===hoyStr() && p.estado!=='Cerrado');
+      P = ya || nuevoParte();
+      if(!ya) PARTES.unshift(P);
+      V='s1'; break;
+    }
+    case 'abrir': {
+      const p = PARTES.find(x=>x.id===b.dataset.id); if(!p) return;
+      P = p; V='s5'; break;
+    }
+
+    /* paso 1 */
+    case 'pres+': P.presentes++; touch(); break;
+    case 'pres-': P.presentes=Math.max(0,P.presentes-1); touch(); break;
+    case 'nt': P.diaNoTrab = (P.diaNoTrab===b.dataset.m?'':b.dataset.m); P.motivo=P.diaNoTrab; touch(); break;
+    case 'p1-next':
+      if(P.diaNoTrab){ guardarParte(); return; }
+      if(P.presentes===0 && !confirm('0 presentes. ¿Seguir igual? (vale para un avance de subcontrato)')) return;
+      V='s2'; break;
+
+    /* paso 2 */
+    case 'add-item': MODAL='items'; BUSCA=''; break;
+    case 'pick-item': {
+      const cod=b.dataset.cod;
+      const it=ITEMS.find(x=>x.cod===cod);
+      P.jornales.push({cod, donde: it&&it.dondes.length? it.dondes[0]:'—', personas:1, repaso:false});
+      MODAL=null; BUSCA=''; touch(); break;
+    }
+    case 'it+': P.jornales[i].personas++; touch(); break;
+    case 'it-': P.jornales[i].personas=Math.max(0,P.jornales[i].personas-1); touch(); break;
+    case 'dd': P.jornales[i].donde=b.dataset.d; touch(); break;
+    case 'rep': P.jornales[i].repaso=!P.jornales[i].repaso; touch(); break;
+    case 'del': P.jornales.splice(i,1); touch(); break;
+    case 'llu+': P.lluvia++; touch(); break;
+    case 'llu-': P.lluvia=Math.max(0,P.lluvia-1); touch(); break;
+    case 'p2-next': {
+      const d = P.presentes - asignados(P);
+      if(d>0 && !confirm('Faltan '+d+' personas por asignar. ¿Seguir igual?')) return;
+      V='s3'; break;
+    }
+
+    /* paso 3 */
+    case 'term-no': V='s5'; break;
+    case 'term-si': MODAL='avance'; BUSCA=''; break;
+    case 'buscar-av': MODAL='avance'; BUSCA=''; break;
+    case 'av': {
+      const cod=b.dataset.cod, donde=b.dataset.d||'—';
+      const met=metodoDe(cod,donde);
+      const ya = P.avances.find(x=>x.cod===cod && x.donde===donde);
+      const prev = AVANCES[key(cod,donde)]||{pct:0,ufs:[]};
+      AV = ya ? Object.assign({},ya) : {cod,donde,metodo:met,pct:prev.pct||0,ufs:[]};
+      MODAL=null; BUSCA=''; V='s4'; break;
+    }
+    case 'del-av': P.avances.splice(i,1); touch(); break;
+
+    /* paso 4 */
+    case 'uf': {
+      const u=b.dataset.u, k=AV.ufs.indexOf(u);
+      if(k>=0) AV.ufs.splice(k,1); else AV.ufs.push(u);
+      break;
+    }
+    case 'pct+': AV.pct=Math.min(100,AV.pct+5); break;
+    case 'pct-': AV.pct=Math.max(0,AV.pct-5); break;
+    case 'av-save': {
+      if(AV.metodo==='UF' && !AV.ufs.length){ toast('No tildaste ninguna UF'); return; }
+      const j = P.avances.findIndex(x=>x.cod===AV.cod && x.donde===AV.donde);
+      if(j>=0) P.avances[j]=AV; else P.avances.push(AV);
+      const k = key(AV.cod,AV.donde);
+      const prev = AVANCES[k]||{pct:0,ufs:[]};
+      AVANCES[k] = AV.metodo==='UF'
+        ? {pct:0, ufs:prev.ufs.concat(AV.ufs.filter(u=>prev.ufs.indexOf(u)<0)), fecha:P.fecha}
+        : {pct:AV.pct, ufs:[], fecha:P.fecha};
+      touch(); guardarTodo(); AV=null; V='s3'; break;
+    }
+
+    /* guardar */
+    case 'guardar': guardarParte(); return;
+
+    /* config */
+    case 'cfg-save': {
+      CFG = {jefe:$('#c-jefe').value.trim(), url:$('#c-url').value.trim(), token:$('#c-tok').value.trim()};
+      lsSet(CFG_KEY,CFG); MODAL=null; toast('Guardado'); break;
+    }
+    default: return;
+  }
+  guardarTodo(); render();
+});
+
+el.addEventListener('input', ev=>{
+  if(ev.target.dataset.a==='q'){
+    BUSCA = ev.target.value;
+    const pos = ev.target.selectionStart;
+    render();
+    const inp = el.querySelector('[data-a="q"]');
+    if(inp){ inp.focus(); inp.setSelectionRange(pos,pos); }
+  }
+});
+
+function guardarParte(){
+  P.modificado = ahoraStr();
+  P.subido = false;
+  if(!PARTES.find(x=>x.id===P.id)) PARTES.unshift(P);
+  guardarTodo();
+  V='home'; P=null; render();
+  toast('Parte guardado en el teléfono. Sube solo cuando haya señal.', 3200);
+  subirCola();
+}
+
+/* ============================================================
+   7. COLA DE SUBIDA
+   ============================================================ */
+/* La clave del parte en la planilla es la Fecha (dd/mm/aaaa), como en PARTES. */
+function payload(p){
+  const F = p.fecha;
+  return {
+    token: CFG.token, obra: OBRA,
+    parte:{ fecha:F, jefe:p.jefe||CFG.jefe||'', estado:'Abierto',
+            reabierto:'', diaNoTrabajado:p.diaNoTrab||'', motivo:p.motivo||'',
+            creado:p.creado, modificado:p.modificado },
+    jornales: p.jornales.filter(j=>j.personas>0).map(j=>({
+      id:F+'·'+j.cod+'·'+(j.donde||'—'), parte:F, item:j.cod,
+      donde:j.donde||'—', personas:j.personas, repaso:j.repaso?'Sí':'No' })),
+    lluvia: p.lluvia>0 ? {parte:F, personas:p.lluvia} : null,
+    avances: p.avances.map(a=> a.metodo==='UF'
+      ? a.ufs.map(u=>({id:F+'·'+a.cod+'·'+a.donde+'·'+u, fecha:F, item:a.cod, donde:a.donde, valor:u}))
+      : [{id:F+'·'+a.cod+'·'+a.donde, fecha:F, item:a.cod, donde:a.donde, valor:a.pct+'%'}]
+    ).reduce((x,y)=>x.concat(y),[])
+  };
+}
+
+let subiendo=false;
+async function subirCola(){
+  if(subiendo || !navigator.onLine) return;
+  if(!CFG.url || !CFG.token) return;
+  const cola = PARTES.filter(p=>!p.subido);
+  if(!cola.length) return;
+  subiendo=true;
+  for(const p of cola){
+    try{
+      const r = await fetch(CFG.url, {method:'POST', body:JSON.stringify(payload(p))});
+      const t = (await r.text()).trim();
+      if(t==='OK'){ p.subido=true; guardarTodo(); }
+      else { toast(t.slice(0,150)); break; }
+    }catch(e){ break; }
+  }
+  subiendo=false;
+  if(V==='home') render();
+}
+window.addEventListener('online', subirCola);
+setInterval(subirCola, 60000);
+
+/* ---------- arranque ---------- */
+render();
+subirCola();
+
+/* --- service worker: deja la app disponible sin senal --- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
