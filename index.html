@@ -7,6 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
 <title>Parte diario RK14</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -334,7 +335,8 @@ function render(){
 
 /* ---------- 5.0 Inicio ---------- */
 function vHome(){
-  const pend = PARTES.filter(p=>!p.subido).length;
+  const pend = PARTES.filter(p=>!p.subido && !p.rechazado).length;
+  const rech = PARTES.filter(p=>p.rechazado).length;
   const hoy  = hoyStr();
   const yaHoy = PARTES.find(p=>p.fecha===hoy);
   const lista = PARTES.slice().sort((a,b)=>dmy(b.fecha)-dmy(a.fecha)).slice(0,12);
@@ -348,6 +350,7 @@ function vHome(){
     <button class="linkish" data-a="cfg" style="margin-left:8px">Cambiar</button>
   </div>
   ${pend ? `<div class="banner">${navigator.onLine?'Subiendo':'Sin señal'} · ${pend} parte${pend>1?'s':''} en cola, sube${pend>1?'n':''} solo</div>` : ''}
+  ${rech ? `<div class="banner" style="background:var(--rojo);color:#fff">${rech} parte${rech>1?'s':''} rechazado${rech>1?'s':''} · abrí y corregí para reenviar</div>` : ''}
   <div class="body">
     <button class="bigbtn" data-a="nuevo">${yaHoy?'Seguir el parte de hoy':'Cargar parte de hoy'} · ${diaCorto(hoy)}</button>
     <div class="sect">Partes cargados</div>
@@ -359,8 +362,9 @@ function vHome(){
             <div class="sub">${p.diaNoTrab? esc(p.diaNoTrab) : p.presentes+' presentes'} ·
               ${p.avances.length? p.avances.length+' avance'+(p.avances.length>1?'s':'') : 'sin avance'}</div>
             <div class="sub2">Creado ${esc(p.creado)} · Modif. ${esc(p.modificado)}</div>
+            ${p.rechazado? `<div class="sub2" style="color:var(--rojo)">Rechazado: ${esc((p.motivoRechazo||'').slice(0,90))}</div>` : ''}
           </div>
-          <span class="chip ${p.subido?'ok':'wait'}">${p.subido?'Subido':'Pendiente de subir'}</span>
+          <span class="chip ${p.rechazado?'wait':(p.subido?'ok':'wait')}" ${p.rechazado?'style="background:var(--rojo);color:#fff"':''}>${p.rechazado?'Rechazado':(p.subido?'Subido':'Pendiente de subir')}</span>
         </div>
       </div>`).join('')
       : '<div class="muted">Todavía no cargaste ningún parte.</div>'}
@@ -760,10 +764,13 @@ el.addEventListener('input', ev=>{
 function guardarParte(){
   P.modificado = ahoraStr();
   P.subido = false;
+  P.rechazado = false;
+  P.motivoRechazo = '';
   if(!PARTES.find(x=>x.id===P.id)) PARTES.unshift(P);
   guardarTodo();
   V='home'; P=null; render();
   toast('Parte guardado en el teléfono. Sube solo cuando haya señal.', 3200);
+  reintentoMin = 1;
   subirCola();
 }
 
@@ -790,24 +797,59 @@ function payload(p){
 }
 
 let subiendo=false;
+const BACKOFF_MIN = [1,2,5,15];      // minutos: 1,2,5,15 y despues se mantiene en 15
+let reintentoMin = 1;
+let temporizadorCola = null;
+
+async function enviarConTimeout(body, ms){
+  const ctrl = new AbortController();
+  const id = setTimeout(()=>ctrl.abort(), ms);
+  try{
+    const r = await fetch(CFG.url, {method:'POST', body, signal:ctrl.signal});
+    return (await r.text()).trim();
+  } finally { clearTimeout(id); }
+}
+
+function programarReintentoCola(){
+  if(temporizadorCola) clearTimeout(temporizadorCola);
+  const min = BACKOFF_MIN[Math.min(BACKOFF_MIN.indexOf(reintentoMin), BACKOFF_MIN.length-1)] || 15;
+  temporizadorCola = setTimeout(subirCola, min*60000);
+  const i = BACKOFF_MIN.indexOf(reintentoMin);
+  reintentoMin = BACKOFF_MIN[Math.min(i+1, BACKOFF_MIN.length-1)];
+}
+
 async function subirCola(){
   if(subiendo || !navigator.onLine) return;
   if(!CFG.url || !CFG.token) return;
-  const cola = PARTES.filter(p=>!p.subido);
+  const cola = PARTES.filter(p=>!p.subido && !p.rechazado);
   if(!cola.length) return;
   subiendo=true;
-  for(const p of cola){
-    try{
-      const r = await fetch(CFG.url, {method:'POST', body:JSON.stringify(payload(p))});
-      const t = (await r.text()).trim();
-      if(t==='OK'){ p.subido=true; guardarTodo(); }
-      else { toast(t.slice(0,150)); break; }
-    }catch(e){ break; }
+  let huboTransitorio=false;
+  try{
+    for(const p of cola){
+      let t;
+      try{
+        t = await enviarConTimeout(JSON.stringify(payload(p)), 30000);
+      }catch(e){ huboTransitorio=true; break; }               // red caida / timeout: transitorio
+      if(t==='OK'){
+        p.subido=true; guardarTodo(); reintentoMin=1;
+      } else if(t==='ERR_OCUPADO' || t==='ERR_LIMITE'){
+        huboTransitorio=true; break;                          // servidor ocupado o limite de tasa: reintenta despues
+      } else if(t.indexOf('ERROR:')===0){
+        p.rechazado=true; p.motivoRechazo=t.slice('ERROR:'.length).trim(); guardarTodo();
+        toast('Parte del '+p.fecha+' rechazado: '+p.motivoRechazo.slice(0,120), 4500);
+        // permanente (dato invalido): no reintenta este parte, sigue con los demas
+      } else {
+        huboTransitorio=true; break;                          // respuesta inesperada (HTML de error, etc.): transitorio
+      }
+    }
+  } finally {
+    subiendo=false;
   }
-  subiendo=false;
+  if(huboTransitorio) programarReintentoCola();
   if(V==='home') render();
 }
-window.addEventListener('online', subirCola);
+window.addEventListener('online', ()=>{ reintentoMin=1; subirCola(); });
 setInterval(subirCola, 60000);
 
 /* ---------- arranque ---------- */
