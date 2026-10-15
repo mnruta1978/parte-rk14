@@ -274,6 +274,8 @@ const z2 = n => String(n).padStart(2,'0');
 function hoyStr(d){ d=d||new Date(); return z2(d.getDate())+'/'+z2(d.getMonth()+1)+'/'+d.getFullYear(); }
 function ahoraStr(){ const d=new Date(); return z2(d.getDate())+'/'+z2(d.getMonth()+1)+' '+z2(d.getHours())+':'+z2(d.getMinutes()); }
 function dmy(s){ const p=String(s).split('/'); return new Date(+p[2],+p[1]-1,+p[0]); }
+function isoDe(s){ const d=dmy(s); return d.getFullYear()+'-'+z2(d.getMonth()+1)+'-'+z2(d.getDate()); }
+function dmyDeIso(s){ const p=String(s).split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 function diaCorto(s){
   const dias=['dom','lun','mar','mié','jue','vie','sáb'];
   const d=dmy(s); return dias[d.getDay()]+' '+z2(d.getDate())+'/'+z2(d.getMonth()+1);
@@ -601,6 +603,20 @@ function vModal(){
       </div>
       <button class="btn wide" data-a="cerrar-modal" style="margin-top:8px">Cancelar</button>`;
   }
+  if(MODAL==='fecha'){
+    const hoy = hoyStr();
+    const minD = new Date(); minD.setDate(minD.getDate()-14);
+    const minIso = minD.getFullYear()+'-'+z2(minD.getMonth()+1)+'-'+z2(minD.getDate());
+    const maxIso = isoDe(hoy);
+    inner = `<h3>¿Parte de qué día?</h3>
+      <div class="cfgrow"><label>Fecha</label>
+        <input id="f-fecha" type="date" value="${maxIso}" min="${minIso}" max="${maxIso}"></div>
+      <div class="muted">Hasta 14 días atrás. Si ya hay un parte cargado para esa fecha, lo abre para seguir.</div>
+      <div style="display:flex;gap:9px;margin-top:12px">
+        <button class="btn ghost" data-a="cerrar-modal" style="flex:1">Cancelar</button>
+        <button class="btn primary" data-a="fecha-confirm" style="flex:1">Continuar</button>
+      </div>`;
+  }
   if(MODAL==='cfg'){
     inner = `<h3>Configuración</h3>
       <div class="cfgrow"><label>Jefe de obra</label><input id="c-jefe" value="${esc(CFG.jefe)}" placeholder="Nombre"></div>
@@ -634,11 +650,20 @@ el.addEventListener('click', ev=>{
     case 'cerrar-modal': MODAL=null; BUSCA=''; break;
     case 'modal-bg': if(ev.target.classList.contains('modal')){ MODAL=null; BUSCA=''; } else return; break;
 
-    case 'nuevo': {
-      const ya = PARTES.find(p=>p.fecha===hoyStr() && p.estado!=='Cerrado');
-      P = ya || nuevoParte();
-      if(!ya) PARTES.unshift(P);
-      V='s1'; break;
+    case 'nuevo': MODAL='fecha'; break;
+    case 'fecha-confirm': {
+      const iso = $('#f-fecha').value;
+      if(!iso){ toast('Elegí una fecha'); return; }
+      const f = dmyDeIso(iso);
+      const existente = PARTES.find(p=>p.fecha===f && p.estado!=='Cerrado');
+      if(existente){
+        P = existente; MODAL=null; V='s1';
+        toast('Ya existe un parte para esa fecha, lo abro.');
+      } else {
+        P = nuevoParte(); P.fecha = f;
+        PARTES.unshift(P); MODAL=null; V='s1';
+      }
+      break;
     }
     case 'abrir': {
       const p = PARTES.find(x=>x.id===b.dataset.id); if(!p) return;
