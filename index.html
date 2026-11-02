@@ -409,7 +409,8 @@ function vHome(){
   })).filter(x=>x.n||x.r);
   const hoy  = hoyStr();
   const yaHoy = PARTES.find(p=>p.fecha===hoy);
-  const lista = PARTES.slice().sort((a,b)=>dmy(b.fecha)-dmy(a.fecha)).slice(0,12);
+  const corte = new Date(); corte.setDate(corte.getDate()-62);
+  const lista = PARTES.filter(p=>!p.subido || p.rechazado || dmy(p.fecha)>=corte).sort((a,b)=>dmy(b.fecha)-dmy(a.fecha));
   return `
   <div class="brand">
     <img class="k" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgBAMAAAAQtmoLAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAAMFBMVEXuyZ3jjzf14svmolnru4bhdw3jgR7+/v3kgyLiexTlmEf36dfqtHjoqmfy17b58+g/aI0pAAADlUlEQVR42rWXTWgTQRTH/1kTswm2JhUVUfPVUgUtFkVKwUMQe1CoVAgoiChSqljU1I96KJSop4qVQBWsF/EgXjwEe7MWQoiEgpUcFAvq7jYSsFSyaQqppcnUQ5q42ySTmUPmNAvvt++9eW9m/mPocykojGZHfLX1M2oMQVBKcz+2oOYQCPiGoPvKcAF5kdeDnz8kTiAHIxegACKfh2+cIQntMNQ56S3I1tlDhr9w5jqHBCzX2YMRgTgXIPIn3c4LBPkAAwjh9HDbxQVk+QsX5gPMdT81gI05Cy4qUNZ6gqOpjKCdRIJ7q4UeUiCn/fK47UfvKvRz6YTW/qf12o8HoIcUmPqfbsO+7h1qih5SWJOufejwRzWl0DwQAbZSug3jNxaWKtjrQiq1qscgHvQeqPR/fUjN/ksF+zn7YChW2b5Sa3gaWkb7Yxcr2+tXKRz5CcFhv/fGd761in1ZpQVH/PeV6OTeavbYdOT/vOnQmU679dySsXunqjB1qys/Zx9+K858TiuM7X2zZfSqOHI6o7Deortf9ODBk4zEfFR+68GjZ1R7fUheYOw53b6scB/WCMeeDgBv220udumwGodp4jCd0Hkg2/zITXibaIS20jaHRW5TyCffvDnNtqy2yJ8ZwDT+iuJjwyrJyTeAqZNC6IBeEOdQFDB12asSOkD0QlIvzAIrX6sSOmAAgJQ6HgRWYtUIHZAFgMTfxyHAHLtfmdABfgAgcrYrAJjPViaEcm1C5PwuAOaz9xMuOpC/sl5w58gkAPN3dwVCW+n09tk1AIBq6Tz5BYjc+T7nTFMLV2xtKTMdBPCw352geYBami1u9r3cD0SOLS+uMV2KJKEOhgBMHjF4KB40Y23RvD8HQOqOuVWma5fIyQ4AeB+1e9juadK80AsApx7pCMrFLqlTQQDwndISNCUgpcb8APD0jIaolnRB+YrJNgVA7LJiUVm0BpH/zAAARgdKPujihMjJcQDA9atFooaaIc6RKABgsEjUkj+Sen52nWj0MOklKS0UtObwrUYPAENfTUnVbH3aAwDi9OmMxKLIClsW+NvxrtFFr0OxD53hHADk9nhVkUXzEXn+QOF4n/DamEQicS6fKxCvvWyqUlKng+sEowyVUmOhAsGQ9HofdrUptVSlPnH84lPGRJ7v4JPSxLnQy6e9JXUqzifWpZTVz9J8Wm1tbeF6DhA5O2MEH2HgfHAQJ+8LReJ+0vwDWf0oHCx9SYYAAAAASUVORK5CYII=" alt="Ruka Kuyen">
@@ -436,7 +437,7 @@ function vHome(){
             <div class="sub">${p.diaNoTrab? esc(p.diaNoTrab) : p.presentes+' presentes'} ·
               ${p.avances.length? p.avances.length+' avance'+(p.avances.length>1?'s':'') : 'sin avance'}</div>
             <div class="sub2">Creado ${esc(p.creado)} · Modif. ${esc(p.modificado)}</div>
-            ${p.rechazado? `<div class="sub2" style="color:var(--rojo)">Rechazado: ${esc((p.motivoRechazo||'').slice(0,90))}</div>` : ''}
+            ${p.rechazado? `<div class="sub2" style="color:var(--rojo)">Rechazado: ${esc((p.motivoRechazo||'').slice(0,90))}</div><button class="linkish" data-a="borrar" data-id="${p.id}" style="color:var(--rojo);margin-top:4px">Borrar este parte</button>` : ''}
           </div>
           <span class="chip ${p.rechazado?'wait':(p.subido?'ok':'wait')}" ${p.rechazado?'style="background:var(--rojo);color:#fff"':''}>${p.rechazado?'Rechazado':(p.subido?'Subido':'Pendiente de subir')}</span>
         </div>
@@ -743,6 +744,11 @@ el.addEventListener('click', ev=>{
         PARTES.unshift(P); MODAL=null; V='s1';
       }
       break;
+    }
+    case 'borrar': {
+      const p = PARTES.find(x=>x.id===b.dataset.id); if(!p || !p.rechazado) return;
+      if(!confirm('Borrar el parte del '+p.fecha+'? No llegó a la planilla.')) return;
+      PARTES.splice(PARTES.indexOf(p),1); guardarTodo(); toast('Parte borrado'); break;
     }
     case 'abrir': {
       const p = PARTES.find(x=>x.id===b.dataset.id); if(!p) return;
