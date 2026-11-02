@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
-<title>Parte diario RK14</title>
+<title>Parte diario</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
@@ -176,20 +176,24 @@ input[type=number],input[type=text]{-webkit-user-select:text;user-select:text}
 "use strict";
 
 /* ============================================================
-   PARTE DIARIO RK14 — Ruka Kuyen Construcciones
+   PARTE DIARIO — Ruka Kuyen Construcciones (RK14 y RK11)
    Flecha 6 · app de obra, carga sin señal, cola de subida
    Datos maestros: MAESTRO y UF de Parte_diario_RK14_base_v1.xlsx
    ============================================================ */
 
 /* ---------- 1. Configuración ---------- */
-const OBRA = 'RUKA 14';
-const CFG_KEY = 'rk14_cfg';          // {url, token, jefe}
-const DB_KEY  = 'rk14_partes';       // partes guardados
-const AV_KEY  = 'rk14_avances';      // cache de avance por itemKey
+/* Cada obra tiene su propia configuracion (URL y clave), sus partes, su cache de avance,
+   su MAESTRO y sus UF. Las claves de RK14 no cambian: lo ya cargado se conserva. */
+const OBRAS = {
+  rk14:{cod:'RK14', nombre:'RUKA 14', cfg:'rk14_cfg', db:'rk14_partes', av:'rk14_avances'},
+  rk11:{cod:'RK11', nombre:'RUKA 11', cfg:'rk11_cfg', db:'rk11_partes', av:'rk11_avances'}
+};
+const OBRA_KEY = 'parte_obra_actual';
+let OBRA = 'RUKA 14';                // nombre de la obra actual
 
 /* ---------- 2. Maestro de ítems (MAESTRO de la planilla) ---------- */
 /* metodo: MANO = % a mano · UF = X UF + Quincho · NINGUNO = sin avance */
-const MAESTRO = [
+const MAESTRO_RK14 = [
   ['01','Trabajos Preliminares','—','MANO'],
   ['02','Movimientos de Suelos','—','MANO'],
   ['03.1','Estructura Hormigón Armado','Cochera','MANO'],
@@ -239,7 +243,7 @@ const MAESTRO = [
 ].map(r=>({cod:r[0],desc:r[1],donde:r[2],metodo:r[3]}));
 
 /* 27 UF + Quincho, igual que la hoja UF de la planilla (actualizado 14/10/2026) */
-const UFS = ['UF 1','UF 2','UF 3','UF 4','UF 5','UF 6','UF 7','UF 8','UF 9','UF 10','UF 11','UF 12',
+const UFS_RK14 = ['UF 1','UF 2','UF 3','UF 4','UF 5','UF 6','UF 7','UF 8','UF 9','UF 10','UF 11','UF 12',
              'UF 13','UF 14','UF 15','UF 16','UF 17','UF 18','UF 19','UF 20','UF 21','UF 22','UF 23',
              'UF 24','UF 25','UF 26','UF 27','Quincho'];
 
@@ -256,7 +260,51 @@ function itemsUnicos(){
   });
   return out;
 }
-const ITEMS = itemsUnicos();
+/* RUKA 11: 37 lineas del PT 2027 (hoja MAESTRO de Parte_diario_RK11_base_v1) · 27 UF: 23 departamentos y 4 locales */
+const MAESTRO_RK11 = [
+  ['04.1','Mampostería (Retak)','—','UF'],
+  ['04.2','Revoque BR','—','UF'],
+  ['04.4','Cielorrasos','Durlock','UF'],
+  ['04.4','Cielorrasos','Madera','UF'],
+  ['04.5','Contrapisos / Carpetas','Contrapiso sobre losa radiante','UF'],
+  ['04.5','Contrapisos / Carpetas','Carpeta cochera','MANO'],
+  ['06.2','Pisos','Interiores','UF'],
+  ['06.2','Pisos','Exteriores','MANO'],
+  ['06.3','Zócalos','—','UF'],
+  ['06.4','Revestimientos micro cocinas y baños','—','UF'],
+  ['06.8','Cercos de madera','—','MANO'],
+  ['06.13','Veredas y pisos no cerámicos','—','MANO'],
+  ['08.1','Puertas interiores','—','UF'],
+  ['08.2','Carpinterías madera + vidrio bloque','—','MANO'],
+  ['07.1','Pintura interior (durlock y cielorraso de yeso)','—','UF'],
+  ['07.2','Pintura revoque exterior y microcemento exterior','—','MANO'],
+  ['07.3','Pintura zócalos y decks de madera','—','MANO'],
+  ['07.4','Pintura estructuras metálicas y piso cochera','—','MANO'],
+  ['12.1','Instalación eléctrica (tomas y materiales)','—','MANO'],
+  ['12.2','Grupo electrógeno','—','MANO'],
+  ['11.1','Accesorios y griferías sanitarias','—','MANO'],
+  ['11.2','Artefactos sanitarios','—','UF'],
+  ['11.3','Sala de máquinas y tanque de reserva','—','MANO'],
+  ['13.1','Instalación de gas','—','MANO'],
+  ['03.1','Estructura metálica y pérgolas','—','MANO'],
+  ['21.1','Herrería varios','—','MANO'],
+  ['16.1','Zinguerías (canaletas, pases, ventilaciones)','—','MANO'],
+  ['17.1','Mármoles (mesadas y trasforo)','—','MANO'],
+  ['10.1','Vidrios y espejos (espejos y mamparas)','—','MANO'],
+  ['22.1','Ascensor','—','MANO'],
+  ['09.1','Placard (frentes e interiores)','—','UF'],
+  ['09.2','Cortinas','—','MANO'],
+  ['09.3','Cocinas, campanas y parrilla','—','MANO'],
+  ['09.4','Iluminación y seguridad','—','MANO'],
+  ['20.1','Riego y parquización','—','MANO'],
+  ['20.2','Deck, portones, cesto, buzón y matafuegos','—','MANO'],
+  ['20.3','Limpieza de obra','—','MANO']
+].map(r=>({cod:r[0],desc:r[1],donde:r[2],metodo:r[3]}));
+const UFS_RK11 = Array.from({length:27},(_,i)=>'UF '+(i+1));
+const ufLbl = ()=> UFS.indexOf('Quincho')>=0 ? 'UF + Quincho' : 'UF';
+
+/* datos de la obra actual (los cambia elegirObra) */
+let MAESTRO = MAESTRO_RK14, UFS = UFS_RK14, ITEMS = [];
 function metodoDe(cod,donde){
   const m = MAESTRO.find(x=>x.cod===cod && (x.donde===donde || (donde==='—'&&x.donde==='—')));
   return m ? m.metodo : (MAESTRO.find(x=>x.cod===cod)||{}).metodo || 'MANO';
@@ -292,11 +340,30 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 function ls(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
 
-let CFG     = ls(CFG_KEY,{url:'',token:'',jefe:''});
-let PARTES  = ls(DB_KEY,[]);
-let AVANCES = ls(AV_KEY,{});   // {itemKey:{pct:0-100, ufs:['UF 1',...], fecha:'dd/mm/aaaa'}}
+/* estado por obra: {cfg:{url,token,jefe}, partes:[...], avances:{itemKey:{pct:0-100, ufs:['UF 1',...], fecha:'dd/mm/aaaa'}}} */
+const ST = {};
+Object.keys(OBRAS).forEach(k=>{
+  const o = OBRAS[k];
+  ST[k] = { cfg:ls(o.cfg,{url:'',token:'',jefe:''}), partes:ls(o.db,[]), avances:ls(o.av,{}) };
+});
+let O = ls(OBRA_KEY,'rk14'); if(!OBRAS[O]) O='rk14';
+let CFG, PARTES, AVANCES;       // apuntan a los datos de la obra actual
 
-function guardarTodo(){ lsSet(DB_KEY,PARTES); lsSet(AV_KEY,AVANCES); }
+function elegirObra(k){
+  O = k; OBRA = OBRAS[k].nombre;
+  CFG = ST[k].cfg; PARTES = ST[k].partes; AVANCES = ST[k].avances;
+  MAESTRO = k==='rk11' ? MAESTRO_RK11 : MAESTRO_RK14;
+  UFS     = k==='rk11' ? UFS_RK11     : UFS_RK14;
+  ITEMS   = itemsUnicos();
+  lsSet(OBRA_KEY,k);
+}
+function guardarTodo(){
+  Object.keys(OBRAS).forEach(k=>{
+    const o = OBRAS[k];
+    lsSet(o.cfg,ST[k].cfg); lsSet(o.db,ST[k].partes); lsSet(o.av,ST[k].avances);
+  });
+}
+elegirObra(O);
 
 let toastT=null;
 function toast(msg,ms){
@@ -337,13 +404,19 @@ function render(){
 function vHome(){
   const pend = PARTES.filter(p=>!p.subido && !p.rechazado).length;
   const rech = PARTES.filter(p=>p.rechazado).length;
+  const otras = Object.keys(OBRAS).filter(k=>k!==O).map(k=>({
+    cod:OBRAS[k].cod, n:ST[k].partes.filter(p=>!p.subido&&!p.rechazado).length, r:ST[k].partes.filter(p=>p.rechazado).length
+  })).filter(x=>x.n||x.r);
   const hoy  = hoyStr();
   const yaHoy = PARTES.find(p=>p.fecha===hoy);
   const lista = PARTES.slice().sort((a,b)=>dmy(b.fecha)-dmy(a.fecha)).slice(0,12);
   return `
   <div class="brand">
     <img class="k" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgBAMAAAAQtmoLAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAAMFBMVEXuyZ3jjzf14svmolnru4bhdw3jgR7+/v3kgyLiexTlmEf36dfqtHjoqmfy17b58+g/aI0pAAADlUlEQVR42rWXTWgTQRTH/1kTswm2JhUVUfPVUgUtFkVKwUMQe1CoVAgoiChSqljU1I96KJSop4qVQBWsF/EgXjwEe7MWQoiEgpUcFAvq7jYSsFSyaQqppcnUQ5q42ySTmUPmNAvvt++9eW9m/mPocykojGZHfLX1M2oMQVBKcz+2oOYQCPiGoPvKcAF5kdeDnz8kTiAHIxegACKfh2+cIQntMNQ56S3I1tlDhr9w5jqHBCzX2YMRgTgXIPIn3c4LBPkAAwjh9HDbxQVk+QsX5gPMdT81gI05Cy4qUNZ6gqOpjKCdRIJ7q4UeUiCn/fK47UfvKvRz6YTW/qf12o8HoIcUmPqfbsO+7h1qih5SWJOufejwRzWl0DwQAbZSug3jNxaWKtjrQiq1qscgHvQeqPR/fUjN/ksF+zn7YChW2b5Sa3gaWkb7Yxcr2+tXKRz5CcFhv/fGd761in1ZpQVH/PeV6OTeavbYdOT/vOnQmU679dySsXunqjB1qys/Zx9+K858TiuM7X2zZfSqOHI6o7Deortf9ODBk4zEfFR+68GjZ1R7fUheYOw53b6scB/WCMeeDgBv220udumwGodp4jCd0Hkg2/zITXibaIS20jaHRW5TyCffvDnNtqy2yJ8ZwDT+iuJjwyrJyTeAqZNC6IBeEOdQFDB12asSOkD0QlIvzAIrX6sSOmAAgJQ6HgRWYtUIHZAFgMTfxyHAHLtfmdABfgAgcrYrAJjPViaEcm1C5PwuAOaz9xMuOpC/sl5w58gkAPN3dwVCW+n09tk1AIBq6Tz5BYjc+T7nTFMLV2xtKTMdBPCw352geYBami1u9r3cD0SOLS+uMV2KJKEOhgBMHjF4KB40Y23RvD8HQOqOuVWma5fIyQ4AeB+1e9juadK80AsApx7pCMrFLqlTQQDwndISNCUgpcb8APD0jIaolnRB+YrJNgVA7LJiUVm0BpH/zAAARgdKPujihMjJcQDA9atFooaaIc6RKABgsEjUkj+Sen52nWj0MOklKS0UtObwrUYPAENfTUnVbH3aAwDi9OmMxKLIClsW+NvxrtFFr0OxD53hHADk9nhVkUXzEXn+QOF4n/DamEQicS6fKxCvvWyqUlKng+sEowyVUmOhAsGQ9HofdrUptVSlPnH84lPGRJ7v4JPSxLnQy6e9JXUqzifWpZTVz9J8Wm1tbeF6DhA5O2MEH2HgfHAQJ+8LReJ+0vwDWf0oHCx9SYYAAAAASUVORK5CYII=" alt="Ruka Kuyen">
-    <div><div class="t">RK14 · RUKA KUYEN</div><h2>Parte diario</h2></div>
+    <div><div class="t">${OBRAS[O].cod} · RUKA KUYEN</div><h2>Parte diario</h2></div>
+  </div>
+  <div style="padding:0 16px 10px;display:grid;grid-template-columns:1fr 1fr;gap:9px">
+    ${Object.keys(OBRAS).map(k=>`<button class="btn ${k===O?'primary':''}" data-a="obra" data-k="${k}">${OBRAS[k].nombre}</button>`).join('')}
   </div>
   <div style="padding:0 16px 10px" class="muted">
     Jefe de obra: <b>${esc(CFG.jefe||'sin cargar')}</b>
@@ -351,6 +424,7 @@ function vHome(){
   </div>
   ${pend ? `<div class="banner">${navigator.onLine?'Subiendo':'Sin señal'} · ${pend} parte${pend>1?'s':''} en cola, sube${pend>1?'n':''} solo</div>` : ''}
   ${rech ? `<div class="banner" style="background:var(--rojo);color:#fff">${rech} parte${rech>1?'s':''} rechazado${rech>1?'s':''} · abrí y corregí para reenviar</div>` : ''}
+  ${otras.map(x=>`<div class="banner">${x.cod}: ${x.n? x.n+' parte'+(x.n>1?'s':'')+' sin subir':''}${x.n&&x.r?' · ':''}${x.r? x.r+' rechazado'+(x.r>1?'s':''):''}</div>`).join('')}
   <div class="body">
     <button class="bigbtn" data-a="nuevo">${yaHoy?'Seguir el parte de hoy':'Cargar parte de hoy'} · ${diaCorto(hoy)}</button>
     <div class="sect">Partes cargados</div>
@@ -475,7 +549,7 @@ function vTermino(){
     <div class="sect">¿Qué se terminó?</div>
     ${delDia.length? delDia.map(d=>`
       <button class="pick" data-a="av" data-cod="${esc(d.cod)}" data-d="${esc(d.donde)}">
-        <span class="mt">${metodoDe(d.cod,d.donde)==='UF'?'UF + Quincho':'% a mano'}</span>
+        <span class="mt">${metodoDe(d.cod,d.donde)==='UF'?ufLbl():'% a mano'}</span>
         ${esc(nombreItem(d.cod,d.donde))}
       </button>`).join('')
       : '<div class="muted">No cargaste ítems hoy.</div>'}
@@ -497,7 +571,7 @@ function vAvance(){
     return `
     ${barra('PASO 4 DE 4 · MARCAR AVANCE', nombreItem(AV.cod,AV.donde),4)}
     <div class="body">
-      <div class="muted">UF + Quincho · Hoy <b>${AV.ufs.length}</b> · Total <b>${tot} de ${UFS.length}</b></div>
+      <div class="muted">${ufLbl()} · Hoy <b>${AV.ufs.length}</b> · Total <b>${tot} de ${UFS.length}</b></div>
       <div class="hint">Tildá las UF que se terminaron</div>
       <div class="ufgrid">
         ${UFS.map(u=>{
@@ -543,7 +617,7 @@ function vResumen(){
   const dif = P.presentes - asig;
   return `
   <div class="topbar"><button class="back" data-a="s3">← Parte</button>
-    <span class="ctx">${diaCorto(P.fecha)} · RK14</span></div>
+    <span class="ctx">${diaCorto(P.fecha)} · ${OBRAS[O].cod}</span></div>
   <div class="head"><h1>Revisá y guardá</h1>
     <span class="chip dark">Presentes ${P.presentes}</span>
     <span class="chip">Ítems ${P.jornales.filter(j=>j.personas>0).length}</span>
@@ -571,7 +645,7 @@ function vResumen(){
 function barra(step,titulo,n){
   return `
   <div class="topbar"><button class="back" data-a="home">← Partes</button>
-    <span class="ctx">${diaCorto(P.fecha)} · RK14</span></div>
+    <span class="ctx">${diaCorto(P.fecha)} · ${OBRAS[O].cod}</span></div>
   <div class="head">
     <div class="step">${esc(step)}</div>
     <h1>${esc(titulo)}</h1>
@@ -601,7 +675,7 @@ function vModal(){
       <div style="margin-top:10px">
       ${filas.slice(0,60).map(m=>`
         <button class="pick" data-a="${soloAvance?'av':'pick-item'}" data-cod="${esc(m.cod)}" data-d="${esc(m.donde)}">
-          ${soloAvance?`<span class="mt">${m.metodo==='UF'?'UF + Quincho':'% a mano'}</span>`:''}
+          ${soloAvance?`<span class="mt">${m.metodo==='UF'?ufLbl():'% a mano'}</span>`:''}
           ${esc(m.cod+' '+m.desc)}${soloAvance&&m.donde!=='—'?`<small>${esc(m.donde)}</small>`:''}
         </button>`).join('')}
       </div>
@@ -622,7 +696,7 @@ function vModal(){
       </div>`;
   }
   if(MODAL==='cfg'){
-    inner = `<h3>Configuración</h3>
+    inner = `<h3>Configuración · ${esc(OBRA)}</h3>
       <div class="cfgrow"><label>Jefe de obra</label><input id="c-jefe" value="${esc(CFG.jefe)}" placeholder="Nombre"></div>
       <div class="cfgrow"><label>URL del Apps Script (doPost)</label><input id="c-url" value="${esc(CFG.url)}" placeholder="https://script.google.com/..."></div>
       <div class="cfgrow"><label>Clave</label><input id="c-tok" value="${esc(CFG.token)}" placeholder="PARTE_TOKEN"></div>
@@ -650,6 +724,7 @@ el.addEventListener('click', ev=>{
     case 's2': V='s2'; break;
     case 's3': V='s3'; break;
     case 's5': V='s5'; break;
+    case 'obra': if(P) return; elegirObra(b.dataset.k); V='home'; break;
     case 'cfg': MODAL='cfg'; break;
     case 'cerrar-modal': MODAL=null; BUSCA=''; break;
     case 'modal-bg': if(ev.target.classList.contains('modal')){ MODAL=null; BUSCA=''; } else return; break;
@@ -743,8 +818,8 @@ el.addEventListener('click', ev=>{
 
     /* config */
     case 'cfg-save': {
-      CFG = {jefe:$('#c-jefe').value.trim(), url:$('#c-url').value.trim(), token:$('#c-tok').value.trim()};
-      lsSet(CFG_KEY,CFG); MODAL=null; toast('Guardado'); break;
+      CFG = ST[O].cfg = {jefe:$('#c-jefe').value.trim(), url:$('#c-url').value.trim(), token:$('#c-tok').value.trim()};
+      MODAL=null; toast('Guardado'); break;
     }
     default: return;
   }
@@ -778,11 +853,11 @@ function guardarParte(){
    7. COLA DE SUBIDA
    ============================================================ */
 /* La clave del parte en la planilla es la Fecha (dd/mm/aaaa), como en PARTES. */
-function payload(p){
+function payload(p,cfg,obraNombre){
   const F = p.fecha;
   return {
-    token: CFG.token, obra: OBRA,
-    parte:{ fecha:F, jefe:p.jefe||CFG.jefe||'', estado:'Abierto',
+    token: cfg.token, obra: obraNombre,
+    parte:{ fecha:F, jefe:p.jefe||cfg.jefe||'', estado:'Abierto',
             reabierto:'', diaNoTrabajado:p.diaNoTrab||'', motivo:p.motivo||'',
             creado:p.creado, modificado:p.modificado, presentes:p.presentes||0 },
     jornales: p.jornales.filter(j=>j.personas>0).map(j=>({
@@ -801,11 +876,11 @@ const BACKOFF_MIN = [1,2,5,15];      // minutos: 1,2,5,15 y despues se mantiene 
 let reintentoMin = 1;
 let temporizadorCola = null;
 
-async function enviarConTimeout(body, ms){
+async function enviarConTimeout(body, ms, url){
   const ctrl = new AbortController();
   const id = setTimeout(()=>ctrl.abort(), ms);
   try{
-    const r = await fetch(CFG.url, {method:'POST', body, signal:ctrl.signal});
+    const r = await fetch(url, {method:'POST', body, signal:ctrl.signal});
     return (await r.text()).trim();
   } finally { clearTimeout(id); }
 }
@@ -820,27 +895,33 @@ function programarReintentoCola(){
 
 async function subirCola(){
   if(subiendo || !navigator.onLine) return;
-  if(!CFG.url || !CFG.token) return;
-  const cola = PARTES.filter(p=>!p.subido && !p.rechazado);
-  if(!cola.length) return;
+  const trabajos=[];
+  Object.keys(OBRAS).forEach(k=>{
+    const cfg = ST[k].cfg;
+    if(!cfg.url || !cfg.token) return;
+    ST[k].partes.filter(p=>!p.subido && !p.rechazado).forEach(p=>trabajos.push({k,p,cfg}));
+  });
+  if(!trabajos.length) return;
   subiendo=true;
   let huboTransitorio=false;
+  const bloq={};                                                // obra con falla transitoria: no sigue en esta vuelta
   try{
-    for(const p of cola){
+    for(const {k,p,cfg} of trabajos){
+      if(bloq[k]) continue;
       let t;
       try{
-        t = await enviarConTimeout(JSON.stringify(payload(p)), 30000);
-      }catch(e){ huboTransitorio=true; break; }               // red caida / timeout: transitorio
+        t = await enviarConTimeout(JSON.stringify(payload(p,cfg,OBRAS[k].nombre)), 30000, cfg.url);
+      }catch(e){ huboTransitorio=true; bloq[k]=true; continue; }  // red caida / timeout: transitorio
       if(t==='OK'){
         p.subido=true; guardarTodo(); reintentoMin=1;
       } else if(t==='ERR_OCUPADO' || t==='ERR_LIMITE'){
-        huboTransitorio=true; break;                          // servidor ocupado o limite de tasa: reintenta despues
+        huboTransitorio=true; bloq[k]=true;                       // servidor ocupado o limite de tasa: reintenta despues
       } else if(t.indexOf('ERROR:')===0){
         p.rechazado=true; p.motivoRechazo=t.slice('ERROR:'.length).trim(); guardarTodo();
-        toast('Parte del '+p.fecha+' rechazado: '+p.motivoRechazo.slice(0,120), 4500);
+        toast(OBRAS[k].cod+' · parte del '+p.fecha+' rechazado: '+p.motivoRechazo.slice(0,120), 4500);
         // permanente (dato invalido): no reintenta este parte, sigue con los demas
       } else {
-        huboTransitorio=true; break;                          // respuesta inesperada (HTML de error, etc.): transitorio
+        huboTransitorio=true; bloq[k]=true;                       // respuesta inesperada (HTML de error, etc.): transitorio
       }
     }
   } finally {
