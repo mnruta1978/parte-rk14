@@ -395,7 +395,14 @@ function uid(){ return 'p'+Date.now().toString(36)+Math.random().toString(36).sl
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function ls(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
-function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+let lsAvisoT=0;
+function lsSet(k,v){
+  try{ localStorage.setItem(k,JSON.stringify(v)); return true; }
+  catch(e){
+    if(Date.now()-lsAvisoT>20000){ lsAvisoT=Date.now(); try{ toast('NO SE PUDO GUARDAR en el teléfono (memoria llena o bloqueada). No cierres la app y avisá a Martín.', 7000); }catch(x){} }
+    return false;
+  }
+}
 
 /* estado por obra: {cfg:{url,token,jefe}, partes:[...], avances:{itemKey:{pct:0-100, ufs:['UF 1',...], fecha:'dd/mm/aaaa'}}} */
 const ST = {};
@@ -624,6 +631,7 @@ function vHome(){
     <button class="linkish" data-a="cfg" style="margin-left:8px">Cambiar</button>
   </div>
   ${pend ? `<div class="banner">${navigator.onLine?'Subiendo':'Sin señal'} · ${pend} parte${pend>1?'s':''} en cola, sube${pend>1?'n':''} solo</div>` : ''}
+  ${Object.keys(CFG_ERR).map(k=>`<div class="banner" style="background:var(--rojo);color:#fff">${OBRAS[k].cod}: el servidor no acepta la clave o la obra (${esc(CFG_ERR[k])}). Revisá Configuración. Los partes siguen en cola.</div>`).join('')}
   ${rech ? `<div class="banner" style="background:var(--rojo);color:#fff">${rech} parte${rech>1?'s':''} rechazado${rech>1?'s':''} · abrí y corregí para reenviar</div>` : ''}
   ${otras.map(x=>`<div class="banner">${x.cod}: ${x.n? x.n+' parte'+(x.n>1?'s':'')+' sin subir':''}${x.n&&x.r?' · ':''}${x.r? x.r+' rechazado'+(x.r>1?'s':''):''}</div>`).join('')}
   <div class="body">
@@ -1090,6 +1098,8 @@ function payload(p,cfg,obraNombre){
 }
 
 let subiendo=false;
+const CFG_ERR={};                    // obra -> mensaje si la clave/obra no coincide con el servidor
+const esErrConfig = t => /token inv|clave incorrecta|obra incorrecta|obra distinta/i.test(t);
 const BACKOFF_MIN = [1,2,5,15];      // minutos: 1,2,5,15 y despues se mantiene en 15
 let reintentoMin = 1;
 let temporizadorCola = null;
@@ -1131,7 +1141,10 @@ async function subirCola(){
         t = await enviarConTimeout(JSON.stringify(payload(p,cfg,OBRAS[k].nombre)), 30000, cfg.url);
       }catch(e){ huboTransitorio=true; bloq[k]=true; continue; }  // red caida / timeout: transitorio
       if(t==='OK'){
-        p.subido=true; guardarTodo(); reintentoMin=1;
+        p.subido=true; guardarTodo(); reintentoMin=1; delete CFG_ERR[k];
+      } else if(t.indexOf('ERROR:')===0 && esErrConfig(t)){
+        huboTransitorio=true; bloq[k]=true;                       // clave u obra mal cargada: el parte NO se rechaza, queda en cola
+        CFG_ERR[k]=t.slice('ERROR:'.length).trim();
       } else if(t==='ERR_OCUPADO' || t==='ERR_LIMITE'){
         huboTransitorio=true; bloq[k]=true;                       // servidor ocupado o limite de tasa: reintenta despues
       } else if(t.indexOf('ERROR:')===0){
