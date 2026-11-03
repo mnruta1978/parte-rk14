@@ -196,10 +196,6 @@ let OBRA = 'RUKA 14';                // nombre de la obra actual
 const MAESTRO_RK14 = [
   ['AUX.3','ART','—','NINGUNO'],
   ['AUX.4','Jornal caído (incluye licencia médica)','—','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','RK11','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','RK9','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','RK10','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','Otra','NINGUNO'],
   ['01','Trabajos Preliminares','—','MANO'],
   ['02','Movimientos de Suelos','—','MANO'],
   ['03.1','Estructura Hormigón Armado','Cochera','MANO'],
@@ -245,7 +241,11 @@ const MAESTRO_RK14 = [
   ['21','Herrería','—','MANO'],
   ['22','Ascensores','—','MANO'],
   ['AUX.1','Limpieza de obra','—','NINGUNO'],
-  ['AUX.2','Carga, descarga y movimiento de materiales','—','NINGUNO']
+  ['AUX.2','Carga, descarga y movimiento de materiales','—','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','RK11','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','RK9','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','RK10','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','Otra','NINGUNO']
 ].map(r=>({cod:r[0],desc:r[1],donde:r[2],metodo:r[3]}));
 
 /* 27 UF + Quincho, igual que la hoja UF de la planilla (actualizado 14/10/2026) */
@@ -270,10 +270,6 @@ function itemsUnicos(){
 const MAESTRO_RK11 = [
   ['AUX.3','ART','—','NINGUNO'],
   ['AUX.4','Jornal caído (incluye licencia médica)','—','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','RK14','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','RK9','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','RK10','NINGUNO'],
-  ['AUX.5','Apoyo a otra obra o consorcio','Otra','NINGUNO'],
   ['04.1','Mampostería (Retak)','—','UF'],
   ['04.2','Revoque BR','—','UF'],
   ['04.4','Cielorrasos','Durlock','UF'],
@@ -310,7 +306,11 @@ const MAESTRO_RK11 = [
   ['09.4','Iluminación y seguridad','—','MANO'],
   ['20.1','Riego y parquización','—','MANO'],
   ['20.2','Deck, portones, cesto, buzón y matafuegos','—','MANO'],
-  ['20.3','Limpieza de obra','—','MANO']
+  ['20.3','Limpieza de obra','—','MANO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','RK14','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','RK9','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','RK10','NINGUNO'],
+  ['AUX.5','Apoyo a otra obra o consorcio','Otra','NINGUNO']
 ].map(r=>({cod:r[0],desc:r[1],donde:r[2],metodo:r[3]}));
 const UFS_RK11 = Array.from({length:27},(_,i)=>'UF '+(i+1));
 const ufLbl = ()=> UFS.indexOf('Quincho')>=0 ? 'UF + Quincho' : 'UF';
