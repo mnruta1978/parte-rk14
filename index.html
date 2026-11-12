@@ -893,13 +893,13 @@ function vModal(){
   }
   if(MODAL==='fecha'){
     const hoy = hoyStr();
-    const minD = new Date(); minD.setDate(minD.getDate()-14);
+    const minD = new Date(); minD.setDate(minD.getDate()-31);
     const minIso = minD.getFullYear()+'-'+z2(minD.getMonth()+1)+'-'+z2(minD.getDate());
     const maxIso = isoDe(hoy);
     inner = `<h3>¿Parte de qué día?</h3>
       <div class="cfgrow"><label>Fecha</label>
         <input id="f-fecha" type="date" value="${maxIso}" min="${minIso}" max="${maxIso}"></div>
-      <div class="muted">Hasta 14 días atrás. Si ya hay un parte cargado para esa fecha, lo abre para seguir.</div>
+      <div class="muted">Hasta 31 días atrás. Si ya hay un parte cargado para esa fecha, lo abre para seguir.</div>
       <div style="display:flex;gap:9px;margin-top:12px">
         <button class="btn ghost" data-a="cerrar-modal" style="flex:1">Cancelar</button>
         <button class="btn primary" data-a="fecha-confirm" style="flex:1">Continuar</button>
