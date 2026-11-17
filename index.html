@@ -1269,7 +1269,11 @@ async function subirCola(){
   if(huboTransitorio) programarReintentoCola();
   if(V==='home') render();
 }
-window.addEventListener('online', ()=>{ reintentoMin=1; subirCola(); });
+window.addEventListener('online', ()=>{
+  reintentoMin=1; subirCola();
+  // vuelve la señal: si está en el paso 3 o 4 sin lectura válida, lee la planilla sola (el botón Reintentar sigue)
+  if(P && (V==='s3' || V==='s4') && !estadoOk()) setTimeout(leerEstado, 1500);
+});
 setInterval(subirCola, 60000);
 
 /* ---------- arranque ---------- */
