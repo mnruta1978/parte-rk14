@@ -131,6 +131,11 @@ button{font-family:inherit;font-size:16px;cursor:pointer}
 .uf.new{background:var(--negro);color:#fff;border-color:var(--negro)}
 .leg{font-size:11px;color:var(--gris-osc);margin-top:9px;display:flex;gap:14px}
 .leg i{font-style:normal}
+.uf{flex-direction:column;line-height:1.1}
+.uf small{font-size:9px;font-weight:normal;margin-top:2px}
+.pick .ya{display:block;font-weight:normal;color:var(--naranja-osc);font-size:12px;margin-top:3px}
+.pick[disabled],.btn[disabled]{opacity:.45;pointer-events:none}
+.box.err{background:#FDECEC;border-color:var(--rojo);color:var(--rojo)}
 
 /* ---------- resumen ---------- */
 table.sum{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
@@ -444,6 +449,79 @@ let AV = null;         // avance en curso {cod,donde,metodo,pct,ufs}
 let BUSCA = '';
 let MODAL = null;      // 'items' | 'avance' | 'cfg' | 'motivo'
 
+/* ---------- 4b. Estado de avance leído de la planilla ----------
+   Antes de marcar avance la app lee lo que ya está cargado en la planilla de la obra.
+   Si no lo pudo leer, no deja marcar avance (bloqueo estricto). El parte diario nunca se bloquea. */
+const EST = {};                       // por obra: {data, at, cargando, err}
+const EST_VALIDO_MS = 10*60*1000;     // una lectura vale 10 minutos
+const estadoOk = ()=> !!(EST[O] && EST[O].data && Date.now()-EST[O].at < EST_VALIDO_MS);
+function estItem(cod,donde){
+  const d = EST[O] && EST[O].data;
+  return (d && d.items && d.items[key(cod,donde)]) || {ufs:{}, pct:null, fechaPct:''};
+}
+const dm = f => String(f||'').slice(0,5);   // dd/mm/aaaa -> dd/mm
+/* UF ya marcadas en la planilla en OTRA fecha que la del parte: no se pueden volver a marcar */
+function ufsBloqueadas(cod,donde,fechaParte){
+  const it = estItem(cod,donde), r = {};
+  Object.keys(it.ufs).forEach(u=>{
+    const otras = it.ufs[u].filter(f=>f!==fechaParte);
+    if(otras.length) r[u] = otras;
+  });
+  return r;
+}
+/* % ya cargado en la planilla en otra fecha: el avance no puede bajar de ahí */
+function pisoPct(cod,donde,fechaParte){
+  const it = estItem(cod,donde);
+  return (it.pct!=null && it.fechaPct!==fechaParte) ? {pct:it.pct, fecha:it.fechaPct} : {pct:0, fecha:''};
+}
+/* texto corto de lo que ya está marcado en la planilla para un ítem */
+function marcadoTxt(cod,donde){
+  if(!estadoOk()) return '';
+  const it = estItem(cod,donde);
+  if(metodoDe(cod,donde)==='UF'){
+    const us = Object.keys(it.ufs);
+    if(!us.length) return 'En planilla: sin avance';
+    const ult = us.map(u=>it.ufs[u][it.ufs[u].length-1]).sort((a,b)=>a.split('/').reverse().join('')<b.split('/').reverse().join('')?1:-1)[0];
+    return 'En planilla: '+us.length+' de '+ufsDe(cod,donde).length+' · último '+dm(ult);
+  }
+  return it.pct!=null ? 'En planilla: '+it.pct+'% · '+dm(it.fechaPct) : 'En planilla: sin avance';
+}
+async function leerEstado(){
+  const k = O, cfg = ST[k].cfg;
+  if(EST[k] && EST[k].cargando) return;
+  if(!cfg.url || !cfg.token){ EST[k] = {err:'Falta cargar la URL y la clave en Configuración.'}; render(); return; }
+  if(!navigator.onLine){ EST[k] = {err:'El teléfono está sin señal.'}; render(); return; }
+  EST[k] = {cargando:true}; render();
+  try{
+    const t = await enviarConTimeout(JSON.stringify({token:cfg.token, obra:OBRAS[k].nombre, accion:'estado'}), 8000, cfg.url);
+    if(t.indexOf('ERROR:')===0) throw new Error(esErrConfig(t) ? 'El servidor no acepta la clave o la obra. Revisá Configuración.' : 'La planilla respondió con error ('+t.slice(6,80).trim()+').');
+    let d=null; try{ d=JSON.parse(t); }catch(e){}
+    if(!d || !d.ok || !d.items) throw new Error(t==='ERR_LIMITE'||t==='ERR_OCUPADO' ? 'La planilla está ocupada.' : 'La planilla no devolvió el estado (¿falta publicar el Apps Script nuevo?).');
+    EST[k] = {data:d, at:Date.now()};
+    if(P && O===k) depurarAvances();
+  }catch(e){
+    EST[k] = {err: e.name==='AbortError' ? 'La planilla tardó demasiado en responder (señal débil).' : e instanceof TypeError ? 'No hay conexión con la planilla (sin señal o URL mal cargada).' : (e.message||'No se pudo leer la planilla.')};
+  }
+  if(P && O===k && (V==='s3' || V==='s4')) render();
+}
+/* Si el parte en edición trae UF que la planilla ya tiene en otra fecha, se sacan y se avisa */
+function depurarAvances(){
+  const quitadas = [];
+  P.avances.forEach(a=>{
+    if(a.metodo!=='UF') return;
+    const bl = ufsBloqueadas(a.cod,a.donde,P.fecha);
+    const antes = a.ufs.length;
+    a.ufs = a.ufs.filter(u=>!bl[u]);
+    if(a.ufs.length<antes) quitadas.push(nombreItem(a.cod,a.donde));
+  });
+  P.avances = P.avances.filter(a=>a.metodo!=='UF' || a.ufs.length);
+  if(quitadas.length){ guardarTodo(); toast('Se sacaron UF que ya estaban marcadas en la planilla: '+quitadas.join(', '), 5000); }
+}
+function irPaso3(){
+  V='s3';
+  if(!estadoOk() && !(EST[O] && EST[O].cargando)) leerEstado();
+}
+
 function nuevoParte(){
   return { id:uid(), fecha:hoyStr(), jefe:CFG.jefe||'', obra:OBRA, estado:'Abierto',
            presentes:0, diaNoTrab:'', motivo:'', jornales:[], lluvia:0, avances:[],
@@ -741,11 +819,19 @@ function vTermino(){
   const delDia = P.jornales
     .filter(j=>metodoDe(j.cod,j.donde||'—')!=='NINGUNO')
     .map(j=>({cod:j.cod,donde:j.donde||'—'}));
+  const e = EST[O] || {}, ok = estadoOk(), dis = ok ? '' : 'disabled';
+  const aviso = e.cargando
+    ? `<div class="box"><b>Leyendo lo marcado en la planilla…</b>Esperá un momento para marcar avance.</div>`
+    : ok ? `<div class="muted" style="margin-bottom:10px">Planilla leída a las ${esc(String(e.data.leido||'').slice(11))}. Ves lo ya marcado en cada ítem.</div>`
+    : `<div class="box err"><b>No se puede marcar avance</b>No se pudo leer lo ya cargado en la planilla: ${esc(e.err||'sin datos')}<br>
+         Sin esa lectura se podría duplicar avance.<br>El parte diario se guarda igual: tocá Siguiente.
+         <button class="btn wide" data-a="est-leer" style="margin-top:10px">Reintentar</button></div>`;
   return `
   ${barra('PASO 3 DE 4','¿Se terminó algo hoy?',3)}
   <div class="body">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <button class="btn" data-a="term-si" style="min-height:64px">Sí</button>
+    ${aviso}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <button class="btn" data-a="term-si" style="min-height:64px" ${dis}>Sí</button>
       <button class="btn" data-a="term-no" style="min-height:64px">No, cerrar parte</button>
     </div>
 
@@ -758,13 +844,14 @@ function vTermino(){
 
     <div class="sect">¿Qué se terminó?</div>
     ${delDia.length? delDia.map(d=>`
-      <button class="pick" data-a="av" data-cod="${esc(d.cod)}" data-d="${esc(d.donde)}">
+      <button class="pick" data-a="av" data-cod="${esc(d.cod)}" data-d="${esc(d.donde)}" ${dis}>
         <span class="mt">${metodoDe(d.cod,d.donde)==='UF'?ufLbl():'% a mano'}</span>
         ${esc(nombreItem(d.cod,d.donde))}
+        ${ok?`<span class="ya">${esc(marcadoTxt(d.cod,d.donde))}</span>`:''}
       </button>`).join('')
       : '<div class="muted">No cargaste ítems hoy.</div>'}
     <div class="muted" style="margin-top:8px">Aparecen los ítems cargados hoy. También se puede buscar otro.</div>
-    <button class="btn wide" data-a="buscar-av" style="margin-top:10px">Buscar otro ítem</button>
+    <button class="btn wide" data-a="buscar-av" style="margin-top:10px" ${dis}>Buscar otro ítem</button>
   </div>
   <div class="foot">
     <button class="btn ghost" data-a="s2">Atrás</button>
@@ -774,10 +861,11 @@ function vTermino(){
 
 /* ---------- 5.4 Marcar avance ---------- */
 function vAvance(){
-  const prev = AVANCES[key(AV.cod,AV.donde)] || {pct:0,ufs:[],fecha:''};
+  const piso = pisoPct(AV.cod,AV.donde,P.fecha);
   if(AV.metodo==='UF'){
-    const marcadas = prev.ufs||[];
-    const tot = marcadas.length + AV.ufs.length;
+    const bl = ufsBloqueadas(AV.cod,AV.donde,P.fecha);
+    const tot = Object.keys(bl).length + AV.ufs.length;
+    const dobles = Object.keys(bl).filter(u=>bl[u].length>1);
     return `
     ${barra('PASO 4 DE 4 · MARCAR AVANCE', nombreItem(AV.cod,AV.donde),4)}
     <div class="body">
@@ -785,14 +873,14 @@ function vAvance(){
       <div class="hint">Tildá las UF que se terminaron</div>
       <div class="ufgrid">
         ${ufsDe(AV.cod,AV.donde).map(u=>{
-          const vieja = marcadas.indexOf(u)>=0, nueva = AV.ufs.indexOf(u)>=0;
+          const vieja = !!bl[u], nueva = AV.ufs.indexOf(u)>=0;
           const lbl = u==='Quincho'?'Quincho':u.replace('UF ','');
           return `<button class="uf ${u==='Quincho'?'q':''} ${vieja?'old':''} ${nueva?'new':''}"
-                   data-a="uf" data-u="${esc(u)}">${lbl}</button>`;
+                   data-a="uf" data-u="${esc(u)}">${lbl}${vieja?`<small>${dm(bl[u][0])}</small>`:''}</button>`;
         }).join('')}
       </div>
-      <div class="leg"><i>▪ gris: ya marcada</i><i>▪ negro: hoy</i></div>
-      ${prev.fecha?`<div class="muted" style="margin-top:10px">Último marcado: ${esc(prev.fecha)}</div>`:''}
+      <div class="leg"><i>▪ gris: ya marcada en la planilla (con su fecha)</i><i>▪ negro: hoy</i></div>
+      ${dobles.length?`<div class="box warn"><b>Para revisar en la planilla</b>${dobles.map(u=>esc(u)+' figura marcada '+bl[u].length+' veces ('+bl[u].map(dm).join(', ')+')').join('<br>')}</div>`:''}
     </div>
     <div class="foot">
       <button class="btn ghost" data-a="s3">Marcar otro</button>
@@ -802,15 +890,14 @@ function vAvance(){
   return `
   ${barra('PASO 4 DE 4 · MARCAR AVANCE', nombreItem(AV.cod,AV.donde),4)}
   <div class="body">
-    <div class="muted">% a mano${prev.fecha?' · anterior '+prev.pct+'% ('+esc(prev.fecha)+')':''}</div>
+    <div class="muted">% a mano · ${piso.fecha?'en planilla '+piso.pct+'% ('+esc(dm(piso.fecha))+')':'en planilla sin avance'}</div>
     <div class="hint">% acumulado del ítem</div>
     <div class="counter">
-      <button class="rnd" data-a="pct-">−</button>
+      <button class="rnd" data-a="pct-" ${AV.pct<=piso.pct?'disabled style="opacity:.35"':''}>−</button>
       <div class="n">${AV.pct}%</div>
       <button class="rnd" data-a="pct+">+</button>
     </div>
-    <div class="muted" style="text-align:center">De a 5%. Es el acumulado, no lo de hoy.</div>
-    ${AV.pct<prev.pct?`<div class="box warn"><b>Ojo</b>Estás poniendo menos que el anterior (${prev.pct}%).</div>`:''}
+    <div class="muted" style="text-align:center">De a 5%. Es el acumulado, no lo de hoy. No baja de lo ya cargado.</div>
   </div>
   <div class="foot">
     <button class="btn ghost" data-a="s3">Marcar otro</button>
@@ -887,6 +974,7 @@ function vModal(){
         <button class="pick" data-a="${soloAvance?'av':'pick-item'}" data-cod="${esc(m.cod)}" data-d="${esc(m.donde)}">
           ${soloAvance?`<span class="mt">${m.metodo==='UF'?ufLbl():'% a mano'}</span>`:''}
           ${esc(m.cod+' '+m.desc)}${soloAvance&&m.donde!=='—'?`<small>${esc(m.donde)}</small>`:''}
+          ${soloAvance?`<span class="ya">${esc(marcadoTxt(m.cod,m.donde))}</span>`:''}
         </button>`).join('')}
       </div>
       <button class="btn wide" data-a="cerrar-modal" style="margin-top:8px">Cancelar</button>`;
@@ -943,7 +1031,8 @@ el.addEventListener('click', ev=>{
     case 'curva-full': MODAL='curva'; break;
     case 's1': V='s1'; break;
     case 's2': V='s2'; break;
-    case 's3': V='s3'; break;
+    case 's3': irPaso3(); break;
+    case 'est-leer': leerEstado(); return;
     case 's5': V='s5'; break;
     case 'obra': if(P) return; elegirObra(b.dataset.k); V='home'; break;
     case 'cfg': MODAL='cfg'; break;
@@ -980,7 +1069,7 @@ el.addEventListener('click', ev=>{
     case 'pres-': P.presentes=Math.max(0,P.presentes-1); touch(); break;
     case 'nt': P.diaNoTrab = (P.diaNoTrab===b.dataset.m?'':b.dataset.m); P.motivo=P.diaNoTrab; touch(); break;
     case 'p1-next':
-      if(P.diaNoTrab){ guardarParte(); return; }
+      if(P.diaNoTrab){ guardarConAviso(); return; }
       if(P.presentes===0 && !confirm('0 presentes. ¿Seguir igual? (vale para un avance de subcontrato)')) return;
       V='s2'; break;
 
@@ -1002,19 +1091,20 @@ el.addEventListener('click', ev=>{
     case 'p2-next': {
       const d = P.presentes - asignados(P);
       if(d>0 && !confirm('Faltan '+d+' personas por asignar. ¿Seguir igual?')) return;
-      V='s3'; break;
+      irPaso3(); break;
     }
 
     /* paso 3 */
     case 'term-no': V='s5'; break;
-    case 'term-si': MODAL='avance'; BUSCA=''; break;
-    case 'buscar-av': MODAL='avance'; BUSCA=''; break;
+    case 'term-si': case 'buscar-av': if(!estadoOk()){ toast('Sin leer la planilla no se puede marcar avance. Tocá Reintentar.'); irPaso3(); break; } MODAL='avance'; BUSCA=''; break;
     case 'av': {
+      if(!estadoOk()){ MODAL=null; toast('Sin leer la planilla no se puede marcar avance. Tocá Reintentar.'); irPaso3(); break; }
       const cod=b.dataset.cod, donde=b.dataset.d||'—';
       const met=metodoDe(cod,donde);
       const ya = P.avances.find(x=>x.cod===cod && x.donde===donde);
-      const prev = AVANCES[key(cod,donde)]||{pct:0,ufs:[]};
-      AV = ya ? Object.assign({},ya) : {cod,donde,metodo:met,pct:prev.pct||0,ufs:[]};
+      const piso = pisoPct(cod,donde,P.fecha).pct;
+      AV = ya ? Object.assign({},ya,{ufs:ya.ufs.slice()}) : {cod,donde,metodo:met,pct:piso,ufs:[]};
+      if(AV.metodo!=='UF') AV.pct = Math.max(AV.pct, piso);
       MODAL=null; BUSCA=''; V='s4'; break;
     }
     case 'del-av': P.avances.splice(i,1); touch(); break;
@@ -1022,13 +1112,15 @@ el.addEventListener('click', ev=>{
     /* paso 4 */
     case 'uf': {
       const u=b.dataset.u, k=AV.ufs.indexOf(u);
+      if(ufsBloqueadas(AV.cod,AV.donde,P.fecha)[u]) return;
       if(k>=0) AV.ufs.splice(k,1); else AV.ufs.push(u);
       break;
     }
     case 'pct+': AV.pct=Math.min(100,AV.pct+5); break;
-    case 'pct-': AV.pct=Math.max(0,AV.pct-5); break;
+    case 'pct-': AV.pct=Math.max(pisoPct(AV.cod,AV.donde,P.fecha).pct,AV.pct-5); break;
     case 'av-save': {
       if(AV.metodo==='UF' && !AV.ufs.length){ toast('No tildaste ninguna UF'); return; }
+      if(AV.metodo!=='UF'){ const pi=pisoPct(AV.cod,AV.donde,P.fecha); if(AV.pct<=pi.pct && pi.fecha){ toast('La planilla ya tiene '+pi.pct+'% ('+dm(pi.fecha)+'). Subí el % o volvé atrás.'); return; } }
       const j = P.avances.findIndex(x=>x.cod===AV.cod && x.donde===AV.donde);
       if(j>=0) P.avances[j]=AV; else P.avances.push(AV);
       const k = key(AV.cod,AV.donde);
@@ -1040,7 +1132,7 @@ el.addEventListener('click', ev=>{
     }
 
     /* guardar */
-    case 'guardar': guardarParte(); return;
+    case 'guardar': guardarConAviso(); return;
 
     /* config */
     case 'cfg-save': {
@@ -1061,6 +1153,22 @@ el.addEventListener('input', ev=>{
     if(inp){ inp.focus(); inp.setSelectionRange(pos,pos); }
   }
 });
+
+/* Aviso: si la planilla ya tiene un parte de ese día que no salió de este teléfono, pregunta antes de pisarlo.
+   Nunca bloquea: si no puede leer la planilla, guarda igual. */
+let guardando = false;
+async function guardarConAviso(){
+  if(guardando) return;
+  if(P.enviado || P.subido){ guardarParte(); return; }      // este teléfono ya mandó ese día
+  guardando = true;
+  try{
+    if(!estadoOk() && navigator.onLine && CFG.url && CFG.token){ toast('Revisando la planilla…', 1500); await leerEstado(); }
+    const d = estadoOk() && EST[O].data.partes && EST[O].data.partes[P.fecha];
+    if(d && !confirm('El parte del '+P.fecha+' ya está en la planilla'+(d.jefe?' (cargado por '+d.jefe+')':'')+
+        ' y no salió de este teléfono.\n\nSi lo guardás, reemplaza ese parte completo, con sus jornales y avances.\n\n¿Reemplazar?')) return;
+    guardarParte();
+  } finally { guardando = false; }
+}
 
 function guardarParte(){
   P.modificado = ahoraStr();
@@ -1141,7 +1249,7 @@ async function subirCola(){
         t = await enviarConTimeout(JSON.stringify(payload(p,cfg,OBRAS[k].nombre)), 30000, cfg.url);
       }catch(e){ huboTransitorio=true; bloq[k]=true; continue; }  // red caida / timeout: transitorio
       if(t==='OK'){
-        p.subido=true; guardarTodo(); reintentoMin=1; delete CFG_ERR[k];
+        p.subido=true; p.enviado=true; guardarTodo(); reintentoMin=1; delete CFG_ERR[k];
       } else if(t.indexOf('ERROR:')===0 && esErrConfig(t)){
         huboTransitorio=true; bloq[k]=true;                       // clave u obra mal cargada: el parte NO se rechaza, queda en cola
         CFG_ERR[k]=t.slice('ERROR:'.length).trim();
