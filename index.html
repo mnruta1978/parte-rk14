@@ -498,11 +498,12 @@ async function leerEstado(){
     let d=null; try{ d=JSON.parse(t); }catch(e){}
     if(!d || !d.ok || !d.items) throw new Error(t==='ERR_LIMITE'||t==='ERR_OCUPADO' ? 'La planilla está ocupada.' : 'La planilla no devolvió el estado (¿falta publicar el Apps Script nuevo?).');
     EST[k] = {data:d, at:Date.now()};
+    if(O===k) fusionarPartes(k, d.detalle);
     if(P && O===k) depurarAvances();
   }catch(e){
     EST[k] = {err: e.name==='AbortError' ? 'La planilla tardó demasiado en responder (señal débil).' : e instanceof TypeError ? 'No hay conexión con la planilla (sin señal o URL mal cargada).' : (e.message||'No se pudo leer la planilla.')};
   }
-  if(P && O===k && (V==='s3' || V==='s4')) render();
+  if(O===k && (V==='home' || (P && (V==='s3' || V==='s4')))) render();
 }
 /* Si el parte en edición trae UF que la planilla ya tiene en otra fecha, se sacan y se avisa */
 function depurarAvances(){
@@ -517,6 +518,37 @@ function depurarAvances(){
   P.avances = P.avances.filter(a=>a.metodo!=='UF' || a.ufs.length);
   if(quitadas.length){ guardarTodo(); toast('Se sacaron UF que ya estaban marcadas en la planilla: '+quitadas.join(', '), 5000); }
 }
+/* Partes del último mes leídos de la planilla: los que faltan en el teléfono se suman a la lista
+   como ya subidos, completos. Si el teléfono tiene cambios sin subir de ese día, o lo está editando,
+   gana el teléfono; si no, gana la planilla. */
+function parteDePlanilla(k, s){
+  const avs = {};
+  (s.avances||[]).forEach(a=>{
+    const kk = key(a.item, a.donde);
+    const pct = /^\d{1,3}%$/.test(a.valor) ? parseInt(a.valor,10) : null;
+    const x = avs[kk] || (avs[kk] = {cod:a.item, donde:a.donde||'—', metodo: pct===null?'UF':'MANO', pct:0, ufs:[]});
+    if(pct===null) x.ufs.push(a.valor); else x.pct = pct;
+  });
+  return { id:uid(), fecha:s.fecha, jefe:s.jefe||'', obra:OBRAS[k].nombre, estado:s.estado||'Abierto',
+           presentes:+s.presentes||0, diaNoTrab:s.diaNoTrab||'', motivo:s.motivo||'',
+           jornales:(s.jornales||[]).map(j=>({cod:j.item, donde:j.donde||'—', personas:+j.personas||0, repaso:!!j.repaso})),
+           lluvia:+s.lluvia||0, avances:Object.keys(avs).map(x=>avs[x]),
+           creado:s.creado||'', modificado:s.modificado||'',
+           subido:true, enviado:true, rechazado:false, motivoRechazo:'', dePlanilla:true };
+}
+function fusionarPartes(k, det){
+  if(!det) return;
+  const lista = ST[k].partes;
+  Object.keys(det).forEach(F=>{
+    const loc = lista.find(p=>p.fecha===F);
+    if(loc && (!loc.subido || loc.rechazado || loc===P)) return;
+    const nuevo = parteDePlanilla(k, det[F]);
+    if(loc){ nuevo.id = loc.id; Object.assign(loc, nuevo); }
+    else lista.push(nuevo);
+  });
+  guardarTodo();
+}
+
 function irPaso3(){
   V='s3';
   if(!estadoOk() && !(EST[O] && EST[O].cargando)) leerEstado();
@@ -723,14 +755,14 @@ function vHome(){
             <div class="ttl">${diaCorto(p.fecha)}</div>
             <div class="sub">${p.diaNoTrab? esc(p.diaNoTrab) : p.presentes+' presentes'} ·
               ${p.avances.length? p.avances.length+' avance'+(p.avances.length>1?'s':'') : 'sin avance'}</div>
-            <div class="sub2">Creado ${esc(p.creado)} · Modif. ${esc(p.modificado)}</div>
+            <div class="sub2">${p.jefe?'Cargó '+esc(p.jefe)+' · ':''}Modif. ${esc(p.modificado)}</div>
             ${p.rechazado? `<div class="sub2" style="color:var(--rojo)">Rechazado: ${esc((p.motivoRechazo||'').slice(0,90))}</div><button class="linkish" data-a="borrar" data-id="${p.id}" style="color:var(--rojo);margin-top:4px">Borrar este parte</button>` : ''}
           </div>
           <span class="chip ${p.rechazado?'wait':(p.subido?'ok':'wait')}" ${p.rechazado?'style="background:var(--rojo);color:#fff"':''}>${p.rechazado?'Rechazado':(p.subido?'Subido':'Pendiente de subir')}</span>
         </div>
       </div>`).join('')
       : '<div class="muted">Todavía no cargaste ningún parte.</div>'}
-    <div class="pie">Quincena ${quincenaDe(hoy)} · los avances pasan al tablero en el cierre.</div>
+    <div class="pie">Quincena ${quincenaDe(hoy)} · los avances pasan al tablero en el cierre.${estadoOk()?'<br>Partes del último mes leídos de la planilla a las '+esc(String(EST[O].data.leido||'').slice(11))+'.':''}</div>
   </div>`;
 }
 
@@ -1034,7 +1066,7 @@ el.addEventListener('click', ev=>{
     case 's3': irPaso3(); break;
     case 'est-leer': leerEstado(); return;
     case 's5': V='s5'; break;
-    case 'obra': if(P) return; elegirObra(b.dataset.k); V='home'; break;
+    case 'obra': if(P) return; elegirObra(b.dataset.k); V='home'; if(!estadoOk()) setTimeout(leerEstado, 0); break;
     case 'cfg': MODAL='cfg'; break;
     case 'cerrar-modal': MODAL=null; BUSCA=''; break;
     case 'modal-bg': if(ev.target.classList.contains('modal')){ MODAL=null; BUSCA=''; } else return; break;
@@ -1272,13 +1304,14 @@ async function subirCola(){
 window.addEventListener('online', ()=>{
   reintentoMin=1; subirCola();
   // vuelve la señal: si está en el paso 3 o 4 sin lectura válida, lee la planilla sola (el botón Reintentar sigue)
-  if(P && (V==='s3' || V==='s4') && !estadoOk()) setTimeout(leerEstado, 1500);
+  if(!estadoOk() && (V==='home' || (P && (V==='s3' || V==='s4')))) setTimeout(leerEstado, 1500);
 });
 setInterval(subirCola, 60000);
 
 /* ---------- arranque ---------- */
 render();
 subirCola();
+if(navigator.onLine) setTimeout(leerEstado, 800);   // trae los partes del último mes de la planilla
 
 /* --- service worker: deja la app disponible sin senal --- */
 if ('serviceWorker' in navigator) {
