@@ -1169,7 +1169,7 @@ el.addEventListener('click', ev=>{
     /* config */
     case 'cfg-save': {
       CFG = ST[O].cfg = {jefe:$('#c-jefe').value.trim(), url:$('#c-url').value.trim(), token:$('#c-tok').value.trim()};
-      MODAL=null; toast('Guardado'); break;
+      MODAL=null; toast('Guardado'); delete EST[O]; setTimeout(leerEstado, 0); break;   // lee la planilla con la clave nueva
     }
     default: return;
   }
